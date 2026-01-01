@@ -36,6 +36,13 @@ pub struct AppData {
     pub is_persistent: bool,
 }
 
+/// Profile data for QML model.
+#[derive(Clone, Default)]
+pub struct ProfileData {
+    pub name: String,
+    pub is_default: bool,
+}
+
 #[cxx_qt::bridge]
 mod ffi {
     unsafe extern "C++" {
@@ -54,6 +61,7 @@ mod ffi {
         #[qproperty(i32, app_count)]
         #[qproperty(bool, mic_muted)]
         #[qproperty(f32, mic_gain)]
+        #[qproperty(i32, profile_count)]
         type UndertoneController = super::UndertoneControllerRust;
 
         /// Change the mix mode (0 = Stream, 1 = Monitor).
@@ -123,6 +131,28 @@ mod ffi {
         /// Toggle microphone mute.
         #[qinvokable]
         fn toggle_mic_mute(self: Pin<&mut UndertoneController>);
+
+        // Profile methods
+
+        /// Get profile name by index.
+        #[qinvokable]
+        fn profile_name(self: &UndertoneController, index: i32) -> QString;
+
+        /// Check if profile is default by index.
+        #[qinvokable]
+        fn profile_is_default(self: &UndertoneController, index: i32) -> bool;
+
+        /// Save current state as a profile.
+        #[qinvokable]
+        fn save_profile(self: Pin<&mut UndertoneController>, name: QString);
+
+        /// Load a saved profile.
+        #[qinvokable]
+        fn load_profile(self: Pin<&mut UndertoneController>, name: QString);
+
+        /// Delete a profile.
+        #[qinvokable]
+        fn delete_profile(self: Pin<&mut UndertoneController>, name: QString);
     }
 }
 
@@ -136,10 +166,12 @@ pub struct UndertoneControllerRust {
     app_count: i32,
     mic_muted: bool,
     mic_gain: f32,
+    profile_count: i32,
 
     // Internal state
     channels: Vec<ChannelData>,
     apps: Vec<AppData>,
+    profiles: Vec<ProfileData>,
     state: Option<Arc<UiState>>,
     command_tx: Option<mpsc::Sender<UiCommand>>,
 }
@@ -155,8 +187,13 @@ impl Default for UndertoneControllerRust {
             app_count: 0,
             mic_muted: false,
             mic_gain: 0.75,
+            profile_count: 1,
             channels: Vec::new(),
             apps: Vec::new(),
+            profiles: vec![ProfileData {
+                name: "Default".to_string(),
+                is_default: true,
+            }],
             state: None,
             command_tx: None,
         }
@@ -171,6 +208,9 @@ pub enum UiCommand {
     SetAppChannel { app_pattern: String, channel: String },
     SetMicGain { gain: f32 },
     ToggleMicMute,
+    SaveProfile { name: String },
+    LoadProfile { name: String },
+    DeleteProfile { name: String },
     Refresh,
 }
 
@@ -340,6 +380,54 @@ impl ffi::UndertoneController {
             let _ = tx.try_send(UiCommand::ToggleMicMute);
         }
     }
+
+    /// Get profile name by index.
+    fn profile_name(&self, index: i32) -> QString {
+        self.profiles
+            .get(index as usize)
+            .map(|p| QString::from(&p.name))
+            .unwrap_or_default()
+    }
+
+    /// Check if profile is default by index.
+    fn profile_is_default(&self, index: i32) -> bool {
+        self.profiles
+            .get(index as usize)
+            .is_some_and(|p| p.is_default)
+    }
+
+    /// Save current state as a profile.
+    fn save_profile(self: Pin<&mut Self>, name: QString) {
+        let profile_name = name.to_string();
+        debug!(name = %profile_name, "Saving profile");
+
+        if let Some(tx) = &self.command_tx {
+            let _ = tx.try_send(UiCommand::SaveProfile { name: profile_name });
+        }
+    }
+
+    /// Load a saved profile.
+    fn load_profile(mut self: Pin<&mut Self>, name: QString) {
+        let profile_name = name.to_string();
+        debug!(name = %profile_name, "Loading profile");
+
+        // Update active profile immediately for UI feedback
+        self.as_mut().set_active_profile(name);
+
+        if let Some(tx) = &self.command_tx {
+            let _ = tx.try_send(UiCommand::LoadProfile { name: profile_name });
+        }
+    }
+
+    /// Delete a profile.
+    fn delete_profile(self: Pin<&mut Self>, name: QString) {
+        let profile_name = name.to_string();
+        debug!(name = %profile_name, "Deleting profile");
+
+        if let Some(tx) = &self.command_tx {
+            let _ = tx.try_send(UiCommand::DeleteProfile { name: profile_name });
+        }
+    }
 }
 
 impl UndertoneControllerRust {
@@ -379,5 +467,16 @@ impl UndertoneControllerRust {
     /// Update mic gain level.
     pub fn update_mic_gain(&mut self, gain: f32) {
         self.mic_gain = gain;
+    }
+
+    /// Update profiles from state.
+    pub fn update_profiles(&mut self, profiles: Vec<ProfileData>) {
+        self.profile_count = profiles.len() as i32;
+        self.profiles = profiles;
+    }
+
+    /// Update active profile name.
+    pub fn update_active_profile(&mut self, name: String) {
+        self.active_profile = QString::from(&name);
     }
 }

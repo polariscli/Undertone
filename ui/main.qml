@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtQuick.Dialogs
 import com.undertone
 
 ApplicationWindow {
@@ -106,24 +107,107 @@ ApplicationWindow {
                 }
             }
 
-            // Profile selector
-            ComboBox {
-                id: profileSelector
-                width: 120
-                model: ["Default"]
-                currentIndex: 0
-                font.pixelSize: 12
+            // Profile selector with save button
+            RowLayout {
+                spacing: 4
 
-                background: Rectangle {
-                    color: "#0f3460"
-                    radius: 4
+                ComboBox {
+                    id: profileSelector
+                    Layout.preferredWidth: 120
+                    model: controller.profileCount
+                    font.pixelSize: 12
+
+                    property int selectedIdx: 0
+
+                    displayText: controller.profileName(selectedIdx)
+
+                    onActivated: (index) => {
+                        selectedIdx = index
+                        controller.loadProfile(controller.profileName(index))
+                    }
+
+                    background: Rectangle {
+                        color: "#0f3460"
+                        radius: 4
+                    }
+
+                    contentItem: Text {
+                        text: profileSelector.displayText
+                        color: "#ffffff"
+                        verticalAlignment: Text.AlignVCenter
+                        leftPadding: 8
+                    }
+
+                    delegate: ItemDelegate {
+                        required property int index
+                        width: profileSelector.width
+                        height: 28
+
+                        contentItem: RowLayout {
+                            Text {
+                                text: controller.profileName(index)
+                                color: "#ffffff"
+                                font.pixelSize: 12
+                                Layout.fillWidth: true
+                            }
+                            Text {
+                                text: controller.profileIsDefault(index) ? "*" : ""
+                                color: "#e94560"
+                                font.pixelSize: 12
+                            }
+                        }
+
+                        background: Rectangle {
+                            color: parent.highlighted ? "#e94560" : "#16213e"
+                        }
+                    }
+
+                    popup: Popup {
+                        y: profileSelector.height
+                        width: profileSelector.width
+                        implicitHeight: Math.min(contentItem.implicitHeight, 200)
+                        padding: 1
+
+                        contentItem: ListView {
+                            clip: true
+                            implicitHeight: contentHeight
+                            model: profileSelector.popup.visible ? profileSelector.delegateModel : null
+                            currentIndex: profileSelector.highlightedIndex
+                        }
+
+                        background: Rectangle {
+                            color: "#16213e"
+                            border.color: "#0f3460"
+                            radius: 4
+                        }
+                    }
                 }
 
-                contentItem: Text {
-                    text: profileSelector.displayText
-                    color: "#ffffff"
-                    verticalAlignment: Text.AlignVCenter
-                    leftPadding: 8
+                // Save profile button
+                Button {
+                    Layout.preferredWidth: 32
+                    Layout.preferredHeight: 28
+                    flat: true
+                    text: "+"
+                    font.pixelSize: 16
+                    font.bold: true
+
+                    onClicked: saveProfileDialog.open()
+
+                    background: Rectangle {
+                        color: parent.hovered ? "#e94560" : "#0f3460"
+                        radius: 4
+                    }
+
+                    contentItem: Text {
+                        text: parent.text
+                        color: "#ffffff"
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
+
+                    ToolTip.visible: hovered
+                    ToolTip.text: "Save current settings as profile"
                 }
             }
         }
@@ -239,6 +323,124 @@ ApplicationWindow {
                 text: "Profile: " + controller.activeProfile
                 font.pixelSize: 11
                 color: "#64748b"
+            }
+        }
+    }
+
+    // Save Profile Dialog
+    Dialog {
+        id: saveProfileDialog
+        title: "Save Profile"
+        modal: true
+        anchors.centerIn: parent
+        width: 320
+        height: 180
+
+        background: Rectangle {
+            color: "#16213e"
+            radius: 8
+            border.color: "#0f3460"
+            border.width: 1
+        }
+
+        header: Rectangle {
+            height: 40
+            color: "#0f3460"
+            radius: 8
+
+            Label {
+                anchors.centerIn: parent
+                text: "Save Profile"
+                font.pixelSize: 14
+                font.bold: true
+                color: "#e94560"
+            }
+
+            // Fix bottom corners
+            Rectangle {
+                anchors.bottom: parent.bottom
+                width: parent.width
+                height: 8
+                color: parent.color
+            }
+        }
+
+        contentItem: ColumnLayout {
+            spacing: 16
+
+            Label {
+                text: "Enter a name for this profile:"
+                font.pixelSize: 12
+                color: "#94a3b8"
+            }
+
+            TextField {
+                id: profileNameField
+                Layout.fillWidth: true
+                placeholderText: "Profile name"
+                font.pixelSize: 14
+
+                background: Rectangle {
+                    color: "#0f3460"
+                    radius: 4
+                    border.color: profileNameField.focus ? "#e94560" : "#16213e"
+                    border.width: 1
+                }
+
+                color: "#ffffff"
+                placeholderTextColor: "#64748b"
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 8
+
+                Item { Layout.fillWidth: true }
+
+                Button {
+                    text: "Cancel"
+                    flat: true
+                    onClicked: {
+                        profileNameField.text = ""
+                        saveProfileDialog.close()
+                    }
+
+                    background: Rectangle {
+                        color: parent.hovered ? "#0f3460" : "transparent"
+                        radius: 4
+                    }
+
+                    contentItem: Text {
+                        text: parent.text
+                        color: "#94a3b8"
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                }
+
+                Button {
+                    text: "Save"
+                    enabled: profileNameField.text.trim().length > 0
+
+                    onClicked: {
+                        controller.saveProfile(profileNameField.text.trim())
+                        profileNameField.text = ""
+                        saveProfileDialog.close()
+                    }
+
+                    background: Rectangle {
+                        color: parent.enabled ? (parent.hovered ? "#f05575" : "#e94560") : "#64748b"
+                        radius: 4
+                    }
+
+                    contentItem: Text {
+                        text: parent.text
+                        color: "#ffffff"
+                        font.bold: true
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                }
             }
         }
     }

@@ -6,9 +6,9 @@
 
 ---
 
-## Current Status: Milestone 7 Complete
+## Current Status: Milestone 8 Complete
 
-The Device Panel UI is now implemented. All three main UI pages (Mixer, Apps, Device) are functional. The complete UI integrates with the daemon via cxx-qt bridge for channel control, app routing, and device settings.
+Profile management is now implemented. Users can save mixer configurations to named profiles, load them from a dropdown, and switch between profiles. The complete UI covers Mixer, Apps, Device pages, and Profile management.
 
 ### Verified Working Features
 
@@ -273,16 +273,21 @@ Undertone/
 
 ---
 
-### ⏳ Milestone 8: Profiles (NOT STARTED)
+### ✅ Milestone 8: Profiles (COMPLETE)
 
 **Deliverables:**
 
-- [ ] Save/load mixer configurations
-- [ ] Default profile on startup
-- [ ] Import/export as JSON
+- [x] Save/load mixer configurations
+- [x] Default profile on startup
+- [ ] Import/export as JSON (deferred)
 
-**Current State:**
+**Technical Implementation:**
 
+- Enhanced profile selector in header with dropdown list
+- Save profile dialog with name input and validation
+- Bridge properties: profile_count
+- Bridge methods: profile_name, profile_is_default, save_profile, load_profile, delete_profile
+- UiCommand::SaveProfile, LoadProfile, DeleteProfile for IPC
 - Profile types defined in `undertone-core/src/profile.rs`
 - Database tables exist for persistence
 
@@ -393,21 +398,21 @@ pw-cli list-objects Node | grep ut-
 
 ## Next Steps
 
-1. **Milestone 8: Profiles**
-   - Save/load mixer configurations
-   - Default profile on startup
-   - Import/export as JSON
+1. **Milestone 10: Polish & Release**
+   - Diagnostics page
+   - Error recovery
+   - Installation scripts
+   - Documentation
 
 2. **Milestone 3b: Volume Control** (optional enhancement)
    - Add filter nodes for per-channel, per-mix volume control
    - Route mic input to mixes with volume control
    - Apply volume changes to PipeWire nodes
 
-3. **Milestone 10: Polish & Release**
-   - Diagnostics page
-   - Error recovery
-   - Installation scripts
-   - Documentation
+3. **IPC Integration**
+   - Connect UI to daemon socket
+   - Real-time state synchronization
+   - Event subscription handling
 
 ---
 
