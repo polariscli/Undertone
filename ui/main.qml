@@ -204,15 +204,9 @@ ApplicationWindow {
             controller: controller
         }
 
-        // Apps page (placeholder)
-        Rectangle {
-            color: "#1a1a2e"
-            Label {
-                anchors.centerIn: parent
-                text: "App Routing"
-                color: "#94a3b8"
-                font.pixelSize: 24
-            }
+        // Apps page
+        AppsPage {
+            controller: controller
         }
 
         // Device page (placeholder)

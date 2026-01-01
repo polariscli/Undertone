@@ -26,6 +26,16 @@ pub struct ChannelData {
     pub level_right: f32,
 }
 
+/// App data for QML model.
+#[derive(Clone, Default)]
+pub struct AppData {
+    pub app_id: u32,
+    pub name: String,
+    pub binary_name: String,
+    pub channel: String,
+    pub is_persistent: bool,
+}
+
 #[cxx_qt::bridge]
 mod ffi {
     unsafe extern "C++" {
@@ -41,6 +51,7 @@ mod ffi {
         #[qproperty(QString, active_profile)]
         #[qproperty(i32, mix_mode)]
         #[qproperty(i32, channel_count)]
+        #[qproperty(i32, app_count)]
         type UndertoneController = super::UndertoneControllerRust;
 
         /// Change the mix mode (0 = Stream, 1 = Monitor).
@@ -74,6 +85,32 @@ mod ffi {
         /// Request state refresh from daemon.
         #[qinvokable]
         fn refresh(self: Pin<&mut UndertoneController>);
+
+        // App routing methods
+
+        /// Get app name by index.
+        #[qinvokable]
+        fn app_name(self: &UndertoneController, index: i32) -> QString;
+
+        /// Get app binary name by index.
+        #[qinvokable]
+        fn app_binary(self: &UndertoneController, index: i32) -> QString;
+
+        /// Get app's current channel by index.
+        #[qinvokable]
+        fn app_channel(self: &UndertoneController, index: i32) -> QString;
+
+        /// Check if app route is persistent by index.
+        #[qinvokable]
+        fn app_persistent(self: &UndertoneController, index: i32) -> bool;
+
+        /// Set app channel routing.
+        #[qinvokable]
+        fn set_app_channel(self: Pin<&mut UndertoneController>, app_pattern: QString, channel: QString);
+
+        /// Get list of available channel names (for dropdown).
+        #[qinvokable]
+        fn available_channels(self: &UndertoneController) -> QString;
     }
 }
 
@@ -84,9 +121,11 @@ pub struct UndertoneControllerRust {
     active_profile: QString,
     mix_mode: i32,
     channel_count: i32,
+    app_count: i32,
 
     // Internal state
     channels: Vec<ChannelData>,
+    apps: Vec<AppData>,
     state: Option<Arc<UiState>>,
     command_tx: Option<mpsc::Sender<UiCommand>>,
 }
@@ -99,7 +138,9 @@ impl Default for UndertoneControllerRust {
             active_profile: QString::from("Default"),
             mix_mode: 0,
             channel_count: 0,
+            app_count: 0,
             channels: Vec::new(),
+            apps: Vec::new(),
             state: None,
             command_tx: None,
         }
@@ -111,6 +152,7 @@ pub enum UiCommand {
     SetMixMode(MixType),
     SetVolume { channel: String, volume: f32 },
     ToggleMute { channel: String },
+    SetAppChannel { app_pattern: String, channel: String },
     Refresh,
 }
 
@@ -208,6 +250,57 @@ impl ffi::UndertoneController {
             let _ = tx.try_send(UiCommand::Refresh);
         }
     }
+
+    /// Get app name by index.
+    fn app_name(&self, index: i32) -> QString {
+        self.apps
+            .get(index as usize)
+            .map(|a| QString::from(&a.name))
+            .unwrap_or_default()
+    }
+
+    /// Get app binary name by index.
+    fn app_binary(&self, index: i32) -> QString {
+        self.apps
+            .get(index as usize)
+            .map(|a| QString::from(&a.binary_name))
+            .unwrap_or_default()
+    }
+
+    /// Get app's current channel by index.
+    fn app_channel(&self, index: i32) -> QString {
+        self.apps
+            .get(index as usize)
+            .map(|a| QString::from(&a.channel))
+            .unwrap_or_default()
+    }
+
+    /// Check if app route is persistent by index.
+    fn app_persistent(&self, index: i32) -> bool {
+        self.apps
+            .get(index as usize)
+            .is_some_and(|a| a.is_persistent)
+    }
+
+    /// Set app channel routing.
+    fn set_app_channel(self: Pin<&mut Self>, app_pattern: QString, channel: QString) {
+        let pattern = app_pattern.to_string();
+        let channel_name = channel.to_string();
+        debug!(app = %pattern, channel = %channel_name, "Setting app channel");
+
+        if let Some(tx) = &self.command_tx {
+            let _ = tx.try_send(UiCommand::SetAppChannel {
+                app_pattern: pattern,
+                channel: channel_name,
+            });
+        }
+    }
+
+    /// Get list of available channel names (comma-separated for QML).
+    fn available_channels(&self) -> QString {
+        let names: Vec<&str> = self.channels.iter().map(|c| c.name.as_str()).collect();
+        QString::from(names.join(",").as_str())
+    }
 }
 
 impl UndertoneControllerRust {
@@ -231,5 +324,11 @@ impl UndertoneControllerRust {
     pub fn update_channels(&mut self, channels: Vec<ChannelData>) {
         self.channel_count = channels.len() as i32;
         self.channels = channels;
+    }
+
+    /// Update apps from state.
+    pub fn update_apps(&mut self, apps: Vec<AppData>) {
+        self.app_count = apps.len() as i32;
+        self.apps = apps;
     }
 }

@@ -6,9 +6,9 @@
 
 ---
 
-## Current Status: Milestone 4 Complete
+## Current Status: Milestone 6 Complete
 
-The IPC protocol is now fully implemented with request/response handling and event broadcasting. The daemon handles volume/mute changes, app routing, and emits events for state changes. State mutations are tracked in memory with database persistence for routing rules.
+The App Routing UI is now implemented. Users can see active audio applications, assign them to channels via dropdown, and view default routing rules. The UI integrates with the Rust backend via cxx-qt bridge methods for app management.
 
 ### Verified Working Features
 
@@ -233,13 +233,22 @@ Undertone/
 
 ---
 
-### ⏳ Milestone 6: App Routing UI (NOT STARTED)
+### ✅ Milestone 6: App Routing UI (COMPLETE)
 
 **Deliverables:**
 
-- [ ] List of active audio apps
-- [ ] Click-to-assign channel routing
-- [ ] Persistent route rules
+- [x] List of active audio apps
+- [x] Click-to-assign channel routing
+- [x] Persistent route rules display
+
+**Technical Implementation:**
+
+- AppsPage.qml with ListView showing active apps
+- ComboBox channel selector per app with color-coded channels
+- Persistent route indicator (P badge)
+- Default routes reference panel (Discord->Voice, Spotify->Music, etc.)
+- Bridge methods: app_name, app_binary, app_channel, app_persistent, set_app_channel, available_channels
+- UiCommand::SetAppChannel for async route changes
 
 ---
 
@@ -378,21 +387,20 @@ pw-cli list-objects Node | grep ut-
 
 ## Next Steps
 
-1. **Milestone 5: UI Framework**
-   - Set up cxx-qt build properly
-   - Create main window with mixer page
-   - Implement channel strip component
-   - Connect UI to IPC for real-time updates
+1. **Milestone 7: Device Panel**
+   - Implement DevicePage.qml with device status
+   - Add mic gain slider (via ALSA fallback)
+   - Mute toggle with hardware sync
 
 2. **Milestone 3b: Volume Control** (optional enhancement)
    - Add filter nodes for per-channel, per-mix volume control
    - Route mic input to mixes with volume control
    - Apply volume changes to PipeWire nodes
 
-3. **Milestone 6: App Routing UI**
-   - Display list of active audio apps
-   - Implement click-to-assign channel routing
-   - Show route rules with edit/delete
+3. **Milestone 8: Profiles**
+   - Save/load mixer configurations
+   - Default profile on startup
+   - Import/export as JSON
 
 ---
 

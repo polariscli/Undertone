@@ -16,6 +16,7 @@ fn main() {
                 "../../ui/main.qml",
                 "../../ui/MixerPage.qml",
                 "../../ui/ChannelStrip.qml",
+                "../../ui/AppsPage.qml",
             ],
             ..Default::default()
         })
