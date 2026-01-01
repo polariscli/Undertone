@@ -59,6 +59,35 @@ pub struct AppRoute {
     pub is_persistent: bool,
 }
 
+/// Find the matching route rule for an application.
+///
+/// Returns the channel name if a matching rule is found, otherwise returns "system".
+#[must_use]
+pub fn find_channel_for_app(app_name: &str, binary_name: Option<&str>, rules: &[RouteRule]) -> String {
+    // Sort rules by priority (higher first)
+    let mut sorted_rules: Vec<_> = rules.iter().collect();
+    sorted_rules.sort_by(|a, b| b.priority.cmp(&a.priority));
+
+    // Try to match against app name
+    for rule in &sorted_rules {
+        if rule.matches(app_name) {
+            return rule.channel.clone();
+        }
+    }
+
+    // Try to match against binary name if provided
+    if let Some(binary) = binary_name {
+        for rule in &sorted_rules {
+            if rule.matches(binary) {
+                return rule.channel.clone();
+            }
+        }
+    }
+
+    // Default to system channel
+    "system".to_string()
+}
+
 /// Default routing rules for common applications.
 pub fn default_routes() -> Vec<RouteRule> {
     vec![

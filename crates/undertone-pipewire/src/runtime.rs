@@ -544,6 +544,107 @@ impl PipeWireRuntime {
     pub fn shutdown(&self) {
         let _ = self.factory_tx.send(FactoryRequest::Shutdown);
     }
+
+    /// Route an app's audio output to a specific Undertone channel.
+    ///
+    /// This finds the app node, destroys any existing links to other sinks,
+    /// and creates new links to the target channel sink.
+    ///
+    /// # Arguments
+    /// * `app_node_id` - The PipeWire node ID of the audio app
+    /// * `channel_name` - The Undertone channel name (e.g., "music", "voice")
+    ///
+    /// # Returns
+    /// A vector of created link IDs, or an error.
+    pub fn route_app_to_channel(&self, app_node_id: u32, channel_name: &str) -> PwResult<Vec<u32>> {
+        let channel_sink_name = format!("ut-ch-{channel_name}");
+
+        // Get the channel sink node ID
+        let channel_id = self
+            .graph
+            .get_created_node_id(&channel_sink_name)
+            .ok_or_else(|| PwError::NodeNotFound(channel_sink_name.clone()))?;
+
+        // Get app node info to verify it exists
+        let app_node = self
+            .graph
+            .get_node(app_node_id)
+            .ok_or_else(|| PwError::NodeNotFound(format!("App node {app_node_id}")))?;
+
+        info!(
+            app_id = app_node_id,
+            app_name = %app_node.name,
+            channel = %channel_name,
+            "Routing app to channel"
+        );
+
+        // Find and destroy existing links from this app to any sink
+        let existing_links = self.graph.get_links_for_node(app_node_id);
+        for link in existing_links {
+            // Only destroy output links from this app (app -> sink)
+            if link.output_node == app_node_id {
+                // Check if the destination is not already our target channel
+                if link.input_node != channel_id {
+                    debug!(link_id = link.id, "Destroying existing app link");
+                    if let Err(e) = self.destroy_link(link.id) {
+                        warn!(error = %e, link_id = link.id, "Failed to destroy existing link");
+                    }
+                }
+            }
+        }
+
+        // Create new links from app to channel
+        // App streams use output_FL/output_FR for output ports
+        // Channel sinks use playback_FL/playback_FR for input ports
+        let mut created_links = Vec::new();
+
+        // Try FL/FR first (most common for stereo apps)
+        match self.create_link(app_node_id, "output_FL", channel_id, "playback_FL") {
+            Ok(id) => {
+                created_links.push(id);
+                debug!(link_id = id, "Created left channel link");
+            }
+            Err(e) => {
+                // Try MONO if stereo fails
+                debug!(error = %e, "Failed to create FL link, trying MONO");
+                if let Ok(id) = self.create_link(app_node_id, "output_MONO", channel_id, "playback_FL")
+                {
+                    created_links.push(id);
+                }
+            }
+        }
+
+        match self.create_link(app_node_id, "output_FR", channel_id, "playback_FR") {
+            Ok(id) => {
+                created_links.push(id);
+                debug!(link_id = id, "Created right channel link");
+            }
+            Err(e) => {
+                debug!(error = %e, "Failed to create FR link (mono source?)");
+            }
+        }
+
+        if created_links.is_empty() {
+            return Err(PwError::LinkCreationFailed(
+                "No links could be created from app to channel".to_string(),
+            ));
+        }
+
+        info!(
+            app_id = app_node_id,
+            channel = %channel_name,
+            links_created = created_links.len(),
+            "App routed successfully"
+        );
+
+        Ok(created_links)
+    }
+
+    /// Get all audio client apps currently in the graph.
+    #[must_use]
+    pub fn get_audio_clients(&self) -> Vec<crate::node::NodeInfo> {
+        self.graph.get_audio_clients()
+    }
 }
 
 fn capitalize(s: &str) -> String {
@@ -592,6 +693,7 @@ fn run_pipewire_thread(
     let event_tx_global = event_tx.clone();
     let event_tx_remove = event_tx.clone();
     let graph_global = Arc::clone(&graph);
+    let graph_remove = Arc::clone(&graph);
 
     // Set up registry listener
     let _listener = registry
@@ -600,7 +702,7 @@ fn run_pipewire_thread(
             handle_global(&event_tx_global, &graph_global, &nodes, global);
         })
         .global_remove(move |id| {
-            handle_global_remove(&event_tx_remove, &nodes_remove, id);
+            handle_global_remove(&event_tx_remove, &graph_remove, &nodes_remove, id);
         })
         .register();
 
@@ -972,12 +1074,34 @@ fn handle_global(
                 .and_then(|s| s.parse().ok())
                 .unwrap_or(0);
 
+            let output_port = props
+                .and_then(|p| p.get("link.output.port"))
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(0);
+
             let input_node = props
                 .and_then(|p| p.get("link.input.node"))
                 .and_then(|s| s.parse().ok())
                 .unwrap_or(0);
 
+            let input_port = props
+                .and_then(|p| p.get("link.input.port"))
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(0);
+
             debug!(id = global.id, output_node, input_node, "Link created");
+
+            // Add link to graph cache
+            let link_info = crate::link::LinkInfo {
+                id: global.id,
+                output_node,
+                output_port,
+                input_node,
+                input_port,
+                state: crate::link::LinkState::Active,
+                is_undertone_managed: false, // Will be updated if we created this link
+            };
+            graph.add_link(link_info);
 
             let _ = event_tx.blocking_send(GraphEvent::LinkCreated {
                 id: global.id,
@@ -992,6 +1116,7 @@ fn handle_global(
 
 fn handle_global_remove(
     event_tx: &mpsc::Sender<GraphEvent>,
+    graph: &GraphManager,
     nodes: &Rc<RefCell<HashMap<u32, String>>>,
     id: u32,
 ) {
@@ -1005,6 +1130,9 @@ fn handle_global_remove(
 
         let _ = event_tx.blocking_send(GraphEvent::NodeRemoved { id, name });
     } else {
+        // Could be a link or port removal
+        graph.remove_link(id);
+        graph.remove_port(id);
         let _ = event_tx.blocking_send(GraphEvent::LinkRemoved { id });
     }
 }

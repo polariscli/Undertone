@@ -280,20 +280,53 @@ async fn main() -> Result<()> {
                     GraphEvent::ClientAppeared { id, name, pid } => {
                         info!(id, name = %name, pid = ?pid, "Audio client appeared");
 
+                        // Get the app's binary name from the graph if available
+                        let binary_name = graph.get_node(id).and_then(|n| n.binary_name.clone());
+
+                        // Find the target channel based on routing rules
+                        let target_channel = undertone_core::routing::find_channel_for_app(
+                            &name,
+                            binary_name.as_deref(),
+                            &routes,
+                        );
+
+                        info!(
+                            app_id = id,
+                            app_name = %name,
+                            channel = %target_channel,
+                            "Routing new app to channel"
+                        );
+
+                        // Route the app to the target channel
+                        match pw_runtime.route_app_to_channel(id, &target_channel) {
+                            Ok(link_ids) => {
+                                debug!(
+                                    app_id = id,
+                                    links_created = link_ids.len(),
+                                    "App routed successfully"
+                                );
+                            }
+                            Err(e) => {
+                                warn!(
+                                    app_id = id,
+                                    error = %e,
+                                    "Failed to route app (may be transient)"
+                                );
+                            }
+                        }
+
                         // Emit IPC event
                         let _ = event_tx.send(Event {
                             event: EventType::AppDiscovered,
                             data: serde_json::to_value(AppDiscoveredData {
                                 app_id: id,
                                 name: name.clone(),
-                                binary: None,
+                                binary: binary_name,
                                 pid,
-                                channel: "system".to_string(), // Default channel
+                                channel: target_channel,
                             })
                             .unwrap_or_default(),
                         });
-
-                        // TODO: Apply routing rules
                     }
 
                     GraphEvent::ClientDisappeared { id } => {
@@ -427,7 +460,41 @@ async fn main() -> Result<()> {
                                 error!(error = %e, "Failed to save route to database");
                             }
 
-                            // TODO: Apply routing to matching active apps
+                            // Apply routing to matching active apps
+                            let audio_clients = pw_runtime.get_audio_clients();
+                            for client in audio_clients {
+                                // Check if this client matches the pattern
+                                let matches = client.application_name.as_ref().map_or(false, |name| {
+                                    rule.matches(name)
+                                }) || client.binary_name.as_ref().map_or(false, |name| {
+                                    rule.matches(name)
+                                }) || rule.matches(&client.name);
+
+                                if matches {
+                                    info!(
+                                        app_id = client.id,
+                                        app_name = %client.name,
+                                        channel = %channel,
+                                        "Re-routing matching app"
+                                    );
+                                    match pw_runtime.route_app_to_channel(client.id, &channel) {
+                                        Ok(link_ids) => {
+                                            debug!(
+                                                app_id = client.id,
+                                                links_created = link_ids.len(),
+                                                "App re-routed successfully"
+                                            );
+                                        }
+                                        Err(e) => {
+                                            warn!(
+                                                app_id = client.id,
+                                                error = %e,
+                                                "Failed to re-route app"
+                                            );
+                                        }
+                                    }
+                                }
+                            }
                         }
 
                         Command::RemoveAppRoute { app_pattern } => {
