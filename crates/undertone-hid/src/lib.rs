@@ -11,5 +11,5 @@ pub mod alsa_fallback;
 pub mod device;
 pub mod error;
 
-pub use device::Wave3Device;
+pub use device::{Wave3Device, is_wave3_connected};
 pub use error::{HidError, HidResult};

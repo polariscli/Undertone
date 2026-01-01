@@ -42,6 +42,7 @@ bytes = "1.9"
 
 # HID (optional)
 hidapi = { version = "2.6", features = ["linux-native"] }
+rusb = "0.9"
 
 # Qt UI (cxx-qt)
 cxx-qt = "0.7"

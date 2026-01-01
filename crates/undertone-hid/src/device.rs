@@ -25,22 +25,68 @@ impl Wave3Device {
     /// # Errors
     /// Returns an error if no device is found or detection fails.
     pub fn detect() -> HidResult<Option<Self>> {
-        // Try to find Wave:3 via ALSA first (more reliable)
+        // Try USB enumeration first
+        if let Some(device) = Self::detect_usb()? {
+            return Ok(Some(device));
+        }
+
+        // Fall back to ALSA card detection
         if let Some(card) = Self::find_alsa_card()? {
             info!(card = %card, "Wave:3 detected via ALSA");
-
-            // Try to get serial from ALSA card info
             let serial = Self::get_serial_from_alsa(&card).unwrap_or_else(|| "unknown".to_string());
-
             return Ok(Some(Self { serial, alsa_card: Some(card) }));
         }
 
-        // TODO: Try USB enumeration as fallback
-        // This would use rusb or hidapi to detect the device
-        // but requires proper udev rules for permissions.
-
         debug!("No Wave:3 device found");
         Ok(None)
+    }
+
+    /// Detect Wave:3 via USB enumeration.
+    fn detect_usb() -> HidResult<Option<Self>> {
+        let devices = match rusb::devices() {
+            Ok(d) => d,
+            Err(e) => {
+                debug!(error = %e, "Failed to enumerate USB devices");
+                return Ok(None);
+            }
+        };
+
+        for device in devices.iter() {
+            let desc = match device.device_descriptor() {
+                Ok(d) => d,
+                Err(_) => continue,
+            };
+
+            if desc.vendor_id() == ELGATO_VID && desc.product_id() == WAVE3_PID {
+                // Found Wave:3!
+                let serial = Self::get_usb_serial(&device).unwrap_or_else(|| "unknown".to_string());
+                let alsa_card = Self::find_alsa_card().ok().flatten();
+
+                info!(
+                    serial = %serial,
+                    bus = device.bus_number(),
+                    address = device.address(),
+                    "Wave:3 detected via USB"
+                );
+
+                return Ok(Some(Self { serial, alsa_card }));
+            }
+        }
+
+        Ok(None)
+    }
+
+    /// Get the serial number from a USB device.
+    fn get_usb_serial<T: rusb::UsbContext>(device: &rusb::Device<T>) -> Option<String> {
+        let desc = device.device_descriptor().ok()?;
+        let handle = device.open().ok()?;
+
+        // Try to get serial string
+        if desc.serial_number_string_index().is_some() {
+            handle.read_serial_number_string_ascii(&desc).ok()
+        } else {
+            None
+        }
     }
 
     /// Get the device serial number.
@@ -59,7 +105,7 @@ impl Wave3Device {
     fn find_alsa_card() -> HidResult<Option<String>> {
         // Read /proc/asound/cards to find Wave:3
         let cards =
-            std::fs::read_to_string("/proc/asound/cards").map_err(|e| HidError::IoError(e))?;
+            std::fs::read_to_string("/proc/asound/cards").map_err(HidError::IoError)?;
 
         for line in cards.lines() {
             if line.contains("Wave:3") || line.contains("Wave 3") {
@@ -76,11 +122,30 @@ impl Wave3Device {
     }
 
     /// Get serial number from ALSA card info.
-    fn get_serial_from_alsa(card: &str) -> Option<String> {
+    fn get_serial_from_alsa(_card: &str) -> Option<String> {
         // The serial might be in /proc/asound/cardX/usbid or similar
-        // For now, return None and implement properly later
+        // For now, return None and use USB detection instead
         None
     }
+}
+
+/// Check if a Wave:3 device is currently connected.
+#[must_use]
+pub fn is_wave3_connected() -> bool {
+    let devices = match rusb::devices() {
+        Ok(d) => d,
+        Err(_) => return false,
+    };
+
+    for device in devices.iter() {
+        if let Ok(desc) = device.device_descriptor() {
+            if desc.vendor_id() == ELGATO_VID && desc.product_id() == WAVE3_PID {
+                return true;
+            }
+        }
+    }
+
+    false
 }
 
 /// Device state for tracking changes.

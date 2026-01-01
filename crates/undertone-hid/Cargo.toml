@@ -13,6 +13,9 @@ tokio.workspace = true
 tracing.workspace = true
 thiserror.workspace = true
 
+# USB device detection
+rusb.workspace = true
+
 # HID access - optional, will be implemented later
 # hidapi.workspace = true
 
