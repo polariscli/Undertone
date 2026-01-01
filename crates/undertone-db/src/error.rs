@@ -19,6 +19,9 @@ pub enum DbError {
 
     #[error("Record not found: {0}")]
     NotFound(String),
+
+    #[error("Serialization error: {0}")]
+    Serialization(String),
 }
 
 /// Result type for database operations.

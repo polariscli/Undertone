@@ -7,7 +7,12 @@ use crate::error::{DbError, DbResult};
 use crate::schema::{DEFAULT_DATA, SCHEMA_V1};
 
 /// Current schema version.
-const CURRENT_VERSION: i32 = 1;
+const CURRENT_VERSION: i32 = 2;
+
+/// Migration v2: Add mixer_state column to profiles.
+const SCHEMA_V2: &str = r#"
+ALTER TABLE profiles ADD COLUMN mixer_state TEXT;
+"#;
 
 /// Run all pending migrations.
 pub fn run(conn: &mut Connection) -> DbResult<()> {
@@ -57,6 +62,10 @@ fn apply_migration(conn: &Connection, version: i32) -> DbResult<()> {
             conn.execute_batch(DEFAULT_DATA)?;
             conn.execute("INSERT INTO schema_version (version) VALUES (?)", [version])?;
         }
+        2 => {
+            conn.execute_batch(SCHEMA_V2)?;
+            conn.execute("INSERT INTO schema_version (version) VALUES (?)", [version])?;
+        }
         _ => {
             return Err(DbError::MigrationFailed(format!("Unknown migration version: {version}")));
         }
@@ -83,5 +92,12 @@ mod tests {
         let count: i32 =
             conn.query_row("SELECT COUNT(*) FROM channels", [], |row| row.get(0)).unwrap();
         assert_eq!(count, 5);
+
+        // Verify mixer_state column exists (v2 migration)
+        let _: Result<Option<String>, _> = conn.query_row(
+            "SELECT mixer_state FROM profiles WHERE name = 'Default'",
+            [],
+            |row| row.get(0),
+        );
     }
 }

@@ -183,6 +183,38 @@ async fn main() -> Result<()> {
     let mut device_connected = false;
     let mut device_serial: Option<String> = None;
 
+    // Load default profile on startup (apply channel states to PipeWire)
+    if let Ok(Some(default_profile_name)) = db.get_default_profile() {
+        if let Ok(Some(profile)) = db.load_profile(&default_profile_name) {
+            info!(name = %default_profile_name, "Loading default profile");
+            for profile_ch in &profile.channels {
+                if let Some(ch) = channels.iter_mut().find(|c| c.config.name == profile_ch.name) {
+                    ch.stream_volume = profile_ch.stream_volume;
+                    ch.stream_muted = profile_ch.stream_muted;
+                    ch.monitor_volume = profile_ch.monitor_volume;
+                    ch.monitor_muted = profile_ch.monitor_muted;
+
+                    // Apply to PipeWire filter nodes
+                    use undertone_core::mixer::MixType;
+                    for (mix, volume, muted) in [
+                        (MixType::Stream, ch.stream_volume, ch.stream_muted),
+                        (MixType::Monitor, ch.monitor_volume, ch.monitor_muted),
+                    ] {
+                        let filter_name = match mix {
+                            MixType::Stream => format!("ut-ch-{}-stream-vol", ch.config.name),
+                            MixType::Monitor => format!("ut-ch-{}-monitor-vol", ch.config.name),
+                        };
+                        if let Some(node_id) = graph.get_created_node_id(&filter_name) {
+                            let _ = pw_runtime.set_node_volume(node_id, volume);
+                            let _ = pw_runtime.set_node_mute(node_id, muted);
+                        }
+                    }
+                }
+            }
+            routes = profile.routes;
+        }
+    }
+
     info!("Daemon running. Press Ctrl+C to exit.");
 
     // Main event loop
@@ -508,18 +540,93 @@ async fn main() -> Result<()> {
                         }
 
                         Command::SaveProfile { name } => {
-                            // TODO: Implement profile saving
-                            info!(name = %name, "Profile saving not yet implemented");
+                            use undertone_core::profile::{Profile, ProfileChannel};
+                            use undertone_core::mixer::MixerState;
+
+                            // Build profile from current state
+                            let profile_channels: Vec<ProfileChannel> = channels
+                                .iter()
+                                .map(ProfileChannel::from)
+                                .collect();
+
+                            let profile = Profile {
+                                name: name.clone(),
+                                description: None,
+                                is_default: name == "Default",
+                                channels: profile_channels,
+                                routes: routes.clone(),
+                                mixer: MixerState::default(), // TODO: Track mixer state
+                            };
+
+                            match db.save_profile(&profile) {
+                                Ok(()) => {
+                                    info!(name = %name, "Profile saved");
+                                }
+                                Err(e) => {
+                                    error!(name = %name, error = %e, "Failed to save profile");
+                                }
+                            }
                         }
 
                         Command::LoadProfile { name } => {
-                            // TODO: Implement profile loading
-                            info!(name = %name, "Profile loading not yet implemented");
+                            match db.load_profile(&name) {
+                                Ok(Some(profile)) => {
+                                    info!(name = %name, "Loading profile");
+
+                                    // Apply channel volumes
+                                    for profile_ch in &profile.channels {
+                                        if let Some(ch) = channels.iter_mut()
+                                            .find(|c| c.config.name == profile_ch.name)
+                                        {
+                                            ch.stream_volume = profile_ch.stream_volume;
+                                            ch.stream_muted = profile_ch.stream_muted;
+                                            ch.monitor_volume = profile_ch.monitor_volume;
+                                            ch.monitor_muted = profile_ch.monitor_muted;
+
+                                            // Apply to PipeWire filter nodes
+                                            use undertone_core::mixer::MixType;
+                                            for (mix, volume, muted) in [
+                                                (MixType::Stream, ch.stream_volume, ch.stream_muted),
+                                                (MixType::Monitor, ch.monitor_volume, ch.monitor_muted),
+                                            ] {
+                                                let filter_name = match mix {
+                                                    MixType::Stream => format!("ut-ch-{}-stream-vol", ch.config.name),
+                                                    MixType::Monitor => format!("ut-ch-{}-monitor-vol", ch.config.name),
+                                                };
+                                                if let Some(node_id) = graph.get_created_node_id(&filter_name) {
+                                                    let _ = pw_runtime.set_node_volume(node_id, volume);
+                                                    let _ = pw_runtime.set_node_mute(node_id, muted);
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    // Replace routes
+                                    routes = profile.routes;
+
+                                    info!(name = %name, "Profile loaded and applied");
+                                }
+                                Ok(None) => {
+                                    warn!(name = %name, "Profile not found");
+                                }
+                                Err(e) => {
+                                    error!(name = %name, error = %e, "Failed to load profile");
+                                }
+                            }
                         }
 
                         Command::DeleteProfile { name } => {
-                            // TODO: Implement profile deletion
-                            info!(name = %name, "Profile deletion not yet implemented");
+                            match db.delete_profile(&name) {
+                                Ok(true) => {
+                                    info!(name = %name, "Profile deleted");
+                                }
+                                Ok(false) => {
+                                    warn!(name = %name, "Cannot delete profile (may be default or not found)");
+                                }
+                                Err(e) => {
+                                    error!(name = %name, error = %e, "Failed to delete profile");
+                                }
+                            }
                         }
 
                         Command::SetMicGain { gain } => {

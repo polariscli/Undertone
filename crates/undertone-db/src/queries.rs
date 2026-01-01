@@ -1,12 +1,25 @@
 //! Database query functions.
 
-use rusqlite::{Row, params};
+use rusqlite::params;
 use undertone_core::{
     channel::{ChannelConfig, ChannelState},
+    mixer::MixerState,
+    profile::{Profile, ProfileChannel},
     routing::{PatternType, RouteRule},
 };
 
 use crate::{Database, DbResult};
+
+/// Summary of a profile for listing.
+#[derive(Debug, Clone)]
+pub struct ProfileSummary {
+    /// Profile name
+    pub name: String,
+    /// Whether this is the default profile
+    pub is_default: bool,
+    /// Optional description
+    pub description: Option<String>,
+}
 
 impl Database {
     /// Load all channels with their current state.
@@ -135,5 +148,234 @@ impl Database {
             params![level, source, message, data],
         )?;
         Ok(())
+    }
+
+    /// List all profiles.
+    pub fn list_profiles(&self) -> DbResult<Vec<ProfileSummary>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT name, is_default, description FROM profiles ORDER BY name",
+        )?;
+
+        let profiles = stmt
+            .query_map([], |row| {
+                Ok(ProfileSummary {
+                    name: row.get(0)?,
+                    is_default: row.get(1)?,
+                    description: row.get(2)?,
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(profiles)
+    }
+
+    /// Save a profile (insert or update).
+    pub fn save_profile(&self, profile: &Profile) -> DbResult<()> {
+        // Serialize mixer state to JSON
+        let mixer_json = serde_json::to_string(&profile.mixer)
+            .map_err(|e| crate::error::DbError::Serialization(format!("Failed to serialize mixer state: {e}")))?;
+
+        // Insert or update profile
+        self.conn.execute(
+            r"INSERT INTO profiles (name, description, is_default, mixer_state, updated_at)
+              VALUES (?, ?, ?, ?, datetime('now'))
+              ON CONFLICT(name) DO UPDATE SET
+                description = excluded.description,
+                is_default = excluded.is_default,
+                mixer_state = excluded.mixer_state,
+                updated_at = datetime('now')",
+            params![
+                profile.name,
+                profile.description,
+                profile.is_default,
+                mixer_json,
+            ],
+        )?;
+
+        // Get profile ID
+        let profile_id: i64 = self.conn.query_row(
+            "SELECT id FROM profiles WHERE name = ?",
+            params![profile.name],
+            |row| row.get(0),
+        )?;
+
+        // Clear existing channel states for this profile
+        self.conn.execute(
+            "DELETE FROM profile_channels WHERE profile_id = ?",
+            params![profile_id],
+        )?;
+
+        // Insert channel states
+        for channel in &profile.channels {
+            // Get channel ID
+            let channel_id: Option<i64> = self.conn.query_row(
+                "SELECT id FROM channels WHERE name = ?",
+                params![channel.name],
+                |row| row.get(0),
+            ).ok();
+
+            if let Some(ch_id) = channel_id {
+                self.conn.execute(
+                    r"INSERT INTO profile_channels
+                      (profile_id, channel_id, stream_volume, stream_muted, monitor_volume, monitor_muted)
+                      VALUES (?, ?, ?, ?, ?, ?)",
+                    params![
+                        profile_id,
+                        ch_id,
+                        channel.stream_volume as f64,
+                        channel.stream_muted,
+                        channel.monitor_volume as f64,
+                        channel.monitor_muted,
+                    ],
+                )?;
+            }
+        }
+
+        // Clear existing routes for this profile
+        self.conn.execute(
+            "DELETE FROM profile_routes WHERE profile_id = ?",
+            params![profile_id],
+        )?;
+
+        // Insert routes
+        for route in &profile.routes {
+            let pattern_type = match route.pattern_type {
+                PatternType::Exact => "exact",
+                PatternType::Prefix => "prefix",
+                PatternType::Regex => "regex",
+            };
+
+            // Get channel ID
+            let channel_id: Option<i64> = self.conn.query_row(
+                "SELECT id FROM channels WHERE name = ?",
+                params![route.channel],
+                |row| row.get(0),
+            ).ok();
+
+            if let Some(ch_id) = channel_id {
+                self.conn.execute(
+                    r"INSERT INTO profile_routes
+                      (profile_id, pattern, pattern_type, channel_id, priority)
+                      VALUES (?, ?, ?, ?, ?)",
+                    params![
+                        profile_id,
+                        route.pattern,
+                        pattern_type,
+                        ch_id,
+                        route.priority,
+                    ],
+                )?;
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Load a profile by name.
+    pub fn load_profile(&self, name: &str) -> DbResult<Option<Profile>> {
+        // Get profile metadata
+        let profile_row: Option<(i64, String, Option<String>, bool, Option<String>)> = self.conn.query_row(
+            "SELECT id, name, description, is_default, mixer_state FROM profiles WHERE name = ?",
+            params![name],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?)),
+        ).ok();
+
+        let Some((profile_id, profile_name, description, is_default, mixer_json)) = profile_row else {
+            return Ok(None);
+        };
+
+        // Parse mixer state
+        let mixer: MixerState = mixer_json
+            .and_then(|json| serde_json::from_str(&json).ok())
+            .unwrap_or_default();
+
+        // Load channel states
+        let mut stmt = self.conn.prepare(
+            r"SELECT c.name, pc.stream_volume, pc.stream_muted, pc.monitor_volume, pc.monitor_muted
+              FROM profile_channels pc
+              JOIN channels c ON pc.channel_id = c.id
+              WHERE pc.profile_id = ?",
+        )?;
+
+        let channels: Vec<ProfileChannel> = stmt
+            .query_map(params![profile_id], |row| {
+                Ok(ProfileChannel {
+                    name: row.get(0)?,
+                    stream_volume: row.get::<_, f64>(1)? as f32,
+                    stream_muted: row.get(2)?,
+                    monitor_volume: row.get::<_, f64>(3)? as f32,
+                    monitor_muted: row.get(4)?,
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+
+        // Load routes
+        let mut stmt = self.conn.prepare(
+            r"SELECT pr.pattern, pr.pattern_type, c.name, pr.priority
+              FROM profile_routes pr
+              JOIN channels c ON pr.channel_id = c.id
+              WHERE pr.profile_id = ?
+              ORDER BY pr.priority DESC",
+        )?;
+
+        let routes: Vec<RouteRule> = stmt
+            .query_map(params![profile_id], |row| {
+                let pattern_type_str: String = row.get(1)?;
+                let pattern_type = match pattern_type_str.as_str() {
+                    "exact" => PatternType::Exact,
+                    "prefix" => PatternType::Prefix,
+                    "regex" => PatternType::Regex,
+                    _ => PatternType::Exact,
+                };
+
+                Ok(RouteRule {
+                    pattern: row.get(0)?,
+                    pattern_type,
+                    channel: row.get(2)?,
+                    priority: row.get(3)?,
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(Some(Profile {
+            name: profile_name,
+            description,
+            is_default,
+            channels,
+            routes,
+            mixer,
+        }))
+    }
+
+    /// Delete a profile by name.
+    pub fn delete_profile(&self, name: &str) -> DbResult<bool> {
+        // Don't allow deleting the default profile
+        let is_default: bool = self.conn.query_row(
+            "SELECT is_default FROM profiles WHERE name = ?",
+            params![name],
+            |row| row.get(0),
+        ).unwrap_or(false);
+
+        if is_default {
+            return Ok(false);
+        }
+
+        let deleted = self.conn.execute(
+            "DELETE FROM profiles WHERE name = ? AND is_default = FALSE",
+            params![name],
+        )?;
+
+        Ok(deleted > 0)
+    }
+
+    /// Get the default profile name.
+    pub fn get_default_profile(&self) -> DbResult<Option<String>> {
+        let name: Option<String> = self.conn.query_row(
+            "SELECT name FROM profiles WHERE is_default = TRUE LIMIT 1",
+            [],
+            |row| row.get(0),
+        ).ok();
+
+        Ok(name)
     }
 }
