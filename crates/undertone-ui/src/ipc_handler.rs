@@ -252,16 +252,19 @@ fn event_to_update(event: Event) -> Option<IpcUpdate> {
 
 fn parse_state_response(value: &serde_json::Value) -> Option<IpcUpdate> {
     use serde_json::Value;
-    // Parse the state response and convert to IpcUpdate::StateUpdated
+
+    // Parse channels - daemon format has config.name, config.display_name
     let channels = value
         .get("channels")
         .and_then(|v| v.as_array())
         .map(|arr| {
             arr.iter()
                 .filter_map(|ch| {
+                    // Channel config is nested
+                    let config = ch.get("config")?;
                     Some(ChannelData {
-                        name: ch.get("name")?.as_str()?.to_string(),
-                        display_name: ch
+                        name: config.get("name")?.as_str()?.to_string(),
+                        display_name: config
                             .get("display_name")
                             .and_then(|v| v.as_str())
                             .unwrap_or_default()
@@ -282,14 +285,21 @@ fn parse_state_response(value: &serde_json::Value) -> Option<IpcUpdate> {
                             .get("monitor_muted")
                             .and_then(|v| v.as_bool())
                             .unwrap_or(false),
-                        level_left: 0.0,
-                        level_right: 0.0,
+                        level_left: ch
+                            .get("level_left")
+                            .and_then(|v| v.as_f64())
+                            .unwrap_or(0.0) as f32,
+                        level_right: ch
+                            .get("level_right")
+                            .and_then(|v| v.as_f64())
+                            .unwrap_or(0.0) as f32,
                     })
                 })
                 .collect()
         })
         .unwrap_or_default();
 
+    // Parse app routes
     let apps = value
         .get("app_routes")
         .and_then(|v| v.as_array())
@@ -297,14 +307,22 @@ fn parse_state_response(value: &serde_json::Value) -> Option<IpcUpdate> {
             arr.iter()
                 .filter_map(|app| {
                     Some(AppData {
-                        app_id: app.get("app_id")?.as_u64()? as u32,
-                        name: app.get("app_name")?.as_str()?.to_string(),
+                        app_id: app.get("app_id").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
+                        name: app
+                            .get("app_name")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("Unknown")
+                            .to_string(),
                         binary_name: app
                             .get("binary_name")
                             .and_then(|v| v.as_str())
                             .unwrap_or_default()
                             .to_string(),
-                        channel: app.get("channel")?.as_str()?.to_string(),
+                        channel: app
+                            .get("channel")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("system")
+                            .to_string(),
                         is_persistent: app
                             .get("is_persistent")
                             .and_then(|v| v.as_bool())
@@ -315,28 +333,18 @@ fn parse_state_response(value: &serde_json::Value) -> Option<IpcUpdate> {
         })
         .unwrap_or_default();
 
-    let profiles = value
-        .get("profiles")
-        .and_then(|v| v.as_array())
-        .map(|arr| {
-            arr.iter()
-                .filter_map(|p| {
-                    Some(ProfileData {
-                        name: p.get("name")?.as_str()?.to_string(),
-                        is_default: p
-                            .get("is_default")
-                            .and_then(|v| v.as_bool())
-                            .unwrap_or(false),
-                    })
-                })
-                .collect()
-        })
-        .unwrap_or_else(|| {
-            vec![ProfileData {
-                name: "Default".to_string(),
-                is_default: true,
-            }]
-        });
+    // Daemon doesn't send profiles array, just active_profile
+    // Create default profile list
+    let active_profile = value
+        .get("active_profile")
+        .and_then(|v: &Value| v.as_str())
+        .unwrap_or("Default")
+        .to_string();
+
+    let profiles = vec![ProfileData {
+        name: active_profile.clone(),
+        is_default: active_profile == "Default",
+    }];
 
     let device_connected = value
         .get("device_connected")
@@ -347,12 +355,6 @@ fn parse_state_response(value: &serde_json::Value) -> Option<IpcUpdate> {
         .get("device_serial")
         .and_then(|v: &Value| v.as_str())
         .map(String::from);
-
-    let active_profile = value
-        .get("active_profile")
-        .and_then(|v: &Value| v.as_str())
-        .unwrap_or("Default")
-        .to_string();
 
     Some(IpcUpdate::StateUpdated {
         channels,

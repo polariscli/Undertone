@@ -80,7 +80,7 @@ Rectangle {
                     }
 
                     Label {
-                        text: controller.connected ? "Serial: " + controller.deviceSerial : "Device not detected"
+                        text: controller.connected ? "Serial: " + (controller.deviceSerial || "Unknown") : "Device not detected"
                         font.pixelSize: 12
                         color: "#64748b"
                     }
@@ -180,7 +180,7 @@ Rectangle {
                     }
 
                     Label {
-                        text: Math.round(controller.micGain * 100) + "%"
+                        text: (isNaN(controller.micGain) ? 75 : Math.round(controller.micGain * 100)) + "%"
                         font.pixelSize: 14
                         color: "#ffffff"
                         Layout.preferredWidth: 50

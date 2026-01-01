@@ -66,7 +66,7 @@ ApplicationWindow {
                 }
 
                 Label {
-                    text: controller.connected ? controller.deviceSerial : "Disconnected"
+                    text: controller.connected ? (controller.deviceSerial || "Connected") : "Disconnected"
                     font.pixelSize: 12
                     color: "#94a3b8"
                 }
