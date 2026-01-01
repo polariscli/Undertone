@@ -63,7 +63,11 @@ pub struct AppRoute {
 ///
 /// Returns the channel name if a matching rule is found, otherwise returns "system".
 #[must_use]
-pub fn find_channel_for_app(app_name: &str, binary_name: Option<&str>, rules: &[RouteRule]) -> String {
+pub fn find_channel_for_app(
+    app_name: &str,
+    binary_name: Option<&str>,
+    rules: &[RouteRule],
+) -> String {
     // Sort rules by priority (higher first)
     let mut sorted_rules: Vec<_> = rules.iter().collect();
     sorted_rules.sort_by(|a, b| b.priority.cmp(&a.priority));

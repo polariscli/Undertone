@@ -200,25 +200,19 @@ impl GraphManager {
             .values()
             .find(|n| {
                 // Check if it's an Elgato Wave:3 sink
-                let is_wave3_vendor = n
-                    .properties
-                    .get("device.vendor.id")
-                    .map_or(false, |v| v == "0x0fd9");
-                let is_wave3_product = n
-                    .properties
-                    .get("device.product.id")
-                    .map_or(false, |v| v == "0x0070");
+                let is_wave3_vendor =
+                    n.properties.get("device.vendor.id").map_or(false, |v| v == "0x0fd9");
+                let is_wave3_product =
+                    n.properties.get("device.product.id").map_or(false, |v| v == "0x0070");
                 let is_sink = n.media_class.as_ref().map_or(false, |c| c == "Audio/Sink");
                 let is_alsa = n.name.starts_with("alsa_output");
 
                 // Match by vendor/product ID or by name containing Elgato Wave
-                let is_wave3_by_name = n.name.contains("Elgato")
-                    && n.name.contains("Wave")
-                    && is_sink;
+                let is_wave3_by_name =
+                    n.name.contains("Elgato") && n.name.contains("Wave") && is_sink;
                 let is_wave3_by_id = is_wave3_vendor && is_wave3_product && is_sink;
 
-                (is_wave3_by_id || is_wave3_by_name || (is_alsa && n.is_wave3()))
-                    && is_sink
+                (is_wave3_by_id || is_wave3_by_name || (is_alsa && n.is_wave3())) && is_sink
             })
             .cloned()
     }
@@ -240,8 +234,8 @@ impl GraphManager {
             .values()
             .find(|n| {
                 let is_source = n.media_class.as_ref().map_or(false, |c| c == "Audio/Source");
-                let is_wave3_by_name = (n.name.contains("Elgato") || n.name.contains("Wave"))
-                    && is_source;
+                let is_wave3_by_name =
+                    (n.name.contains("Elgato") || n.name.contains("Wave")) && is_source;
                 let is_alsa_input = n.name.starts_with("alsa_input");
 
                 (is_wave3_by_name || (is_alsa_input && n.is_wave3())) && is_source

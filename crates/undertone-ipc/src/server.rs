@@ -143,12 +143,15 @@ impl IpcServer {
                             }
                         }
                         Ok(_) => {
-                            if let Ok(request) = serde_json::from_str::<Request>(&line) {
-                                debug!(client_id, request_id = request.id, "Received request");
-                                pending_requests += 1;
-                                let _ = request_tx.send((client_id, request, response_tx.clone())).await;
-                            } else {
-                                warn!(client_id, "Invalid request format");
+                            match serde_json::from_str::<Request>(&line) {
+                                Ok(request) => {
+                                    debug!(client_id, request_id = request.id, "Received request");
+                                    pending_requests += 1;
+                                    let _ = request_tx.send((client_id, request, response_tx.clone())).await;
+                                }
+                                Err(e) => {
+                                    warn!(client_id, error = %e, line = %line, "Invalid request format");
+                                }
                             }
                             line.clear();
                         }

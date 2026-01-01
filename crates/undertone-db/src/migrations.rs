@@ -94,10 +94,9 @@ mod tests {
         assert_eq!(count, 5);
 
         // Verify mixer_state column exists (v2 migration)
-        let _: Result<Option<String>, _> = conn.query_row(
-            "SELECT mixer_state FROM profiles WHERE name = 'Default'",
-            [],
-            |row| row.get(0),
-        );
+        let _: Result<Option<String>, _> =
+            conn.query_row("SELECT mixer_state FROM profiles WHERE name = 'Default'", [], |row| {
+                row.get(0)
+            });
     }
 }

@@ -69,7 +69,22 @@ impl PipeWireRuntime {
     }
 
     /// Create a virtual sink node.
+    ///
+    /// If a node with the same name already exists and is undertone-managed,
+    /// it will be reused instead of creating a duplicate.
     pub fn create_sink(&self, props: VirtualSinkProps) -> PwResult<CreatedNode> {
+        // Check if a node with this name already exists
+        if let Some(existing) = self.graph.get_node_by_name(&props.name) {
+            if existing.is_undertone_managed {
+                info!(
+                    name = %props.name,
+                    id = existing.id,
+                    "Reusing existing undertone node"
+                );
+                return Ok(CreatedNode { id: existing.id, name: props.name });
+            }
+        }
+
         self.factory_tx
             .send(FactoryRequest::CreateSink(props))
             .map_err(|_| PwError::MainLoopError("Factory channel closed".to_string()))?;
@@ -426,10 +441,9 @@ impl PipeWireRuntime {
             .ok_or_else(|| PwError::NodeNotFound("ut-monitor-mix".to_string()))?;
 
         // Find the Wave:3 sink node (by name or device properties)
-        let wave3_sink = self
-            .graph
-            .find_wave3_sink()
-            .ok_or_else(|| PwError::NodeNotFound("Wave:3 sink (wave3-sink or Elgato output)".to_string()))?;
+        let wave3_sink = self.graph.find_wave3_sink().ok_or_else(|| {
+            PwError::NodeNotFound("Wave:3 sink (wave3-sink or Elgato output)".to_string())
+        })?;
 
         info!(
             monitor_mix_id = monitor_mix.id,
@@ -446,12 +460,27 @@ impl PipeWireRuntime {
     /// This creates a null-audio-sink that can be used as a volume control point
     /// in the audio routing graph. The node supports volume and mute control
     /// via `set_node_volume` and `set_node_mute`.
+    ///
+    /// If a node with the same name already exists and is undertone-managed,
+    /// it will be reused instead of creating a duplicate.
     pub fn create_volume_filter(
         &self,
         name: &str,
         description: &str,
         channels: u32,
     ) -> PwResult<CreatedNode> {
+        // Check if a node with this name already exists
+        if let Some(existing) = self.graph.get_node_by_name(name) {
+            if existing.is_undertone_managed {
+                info!(
+                    name = %name,
+                    id = existing.id,
+                    "Reusing existing volume filter node"
+                );
+                return Ok(CreatedNode { id: existing.id, name: name.to_string() });
+            }
+        }
+
         self.factory_tx
             .send(FactoryRequest::CreateVolumeFilter {
                 name: name.to_string(),
@@ -617,7 +646,8 @@ impl PipeWireRuntime {
             Err(e) => {
                 // Try MONO if stereo fails
                 debug!(error = %e, "Failed to create FL link, trying MONO");
-                if let Ok(id) = self.create_link(app_node_id, "output_MONO", channel_id, "playback_FL")
+                if let Ok(id) =
+                    self.create_link(app_node_id, "output_MONO", channel_id, "playback_FL")
                 {
                     created_links.push(id);
                 }

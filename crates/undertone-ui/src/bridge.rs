@@ -97,8 +97,8 @@ mod ffi {
     unsafe extern "RustQt" {
         #[qobject]
         #[qml_element]
-        #[qproperty(bool, connected)]           // Connected to daemon
-        #[qproperty(bool, device_connected)]    // Wave:3 device connected
+        #[qproperty(bool, connected)] // Connected to daemon
+        #[qproperty(bool, device_connected)] // Wave:3 device connected
         #[qproperty(QString, device_serial)]
         #[qproperty(QString, active_profile)]
         #[qproperty(i32, mix_mode)]
@@ -522,10 +522,13 @@ impl ffi::UndertoneController {
                 // Note: `connected` stays true (connected to daemon).
                 // `device_connected` indicates if Wave:3 is connected.
                 self.as_mut().set_device_connected(device_connected);
-                self.as_mut()
-                    .set_device_serial(QString::from(device_serial.as_deref().unwrap_or(
-                        if device_connected { "unknown" } else { "" }
-                    )));
+                self.as_mut().set_device_serial(QString::from(
+                    device_serial.as_deref().unwrap_or(if device_connected {
+                        "unknown"
+                    } else {
+                        ""
+                    }),
+                ));
                 self.as_mut().set_active_profile(QString::from(active_profile.as_str()));
 
                 // Update global cache for vector data
@@ -570,7 +573,8 @@ impl ffi::UndertoneController {
             IpcUpdate::DeviceConnected { serial } => {
                 info!(?serial, "Device connected");
                 self.as_mut().set_device_connected(true);
-                self.as_mut().set_device_serial(QString::from(serial.as_deref().unwrap_or("unknown")));
+                self.as_mut()
+                    .set_device_serial(QString::from(serial.as_deref().unwrap_or("unknown")));
             }
             IpcUpdate::DeviceDisconnected => {
                 info!("Device disconnected");

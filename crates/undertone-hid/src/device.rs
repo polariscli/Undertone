@@ -104,8 +104,7 @@ impl Wave3Device {
     /// Find the ALSA card for Wave:3.
     fn find_alsa_card() -> HidResult<Option<String>> {
         // Read /proc/asound/cards to find Wave:3
-        let cards =
-            std::fs::read_to_string("/proc/asound/cards").map_err(HidError::IoError)?;
+        let cards = std::fs::read_to_string("/proc/asound/cards").map_err(HidError::IoError)?;
 
         for line in cards.lines() {
             if line.contains("Wave:3") || line.contains("Wave 3") {
