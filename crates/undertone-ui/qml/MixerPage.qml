@@ -29,7 +29,7 @@ Rectangle {
                 levelRight: 0.0
                 channelColor: getChannelColor(index)
 
-                onVolumeChanged: (newVolume) => {
+                onVolumeAdjusted: (newVolume) => {
                     controller.setChannelVolume(channelName, newVolume)
                 }
 

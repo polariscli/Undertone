@@ -19,7 +19,7 @@ Rectangle {
     property color channelColor: "#e94560"
 
     // Signals
-    signal volumeChanged(real newVolume)
+    signal volumeAdjusted(real newVolume)
     signal muteToggled()
 
     ColumnLayout {
@@ -75,7 +75,7 @@ Rectangle {
                 Layout.fillHeight: true
 
                 onMoved: {
-                    channelStrip.volumeChanged(value)
+                    channelStrip.volumeAdjusted(value)
                 }
 
                 background: Rectangle {
