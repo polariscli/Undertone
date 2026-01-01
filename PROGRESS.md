@@ -6,9 +6,9 @@
 
 ---
 
-## Current Status: Milestone 6 Complete
+## Current Status: Milestone 7 Complete
 
-The App Routing UI is now implemented. Users can see active audio applications, assign them to channels via dropdown, and view default routing rules. The UI integrates with the Rust backend via cxx-qt bridge methods for app management.
+The Device Panel UI is now implemented. All three main UI pages (Mixer, Apps, Device) are functional. The complete UI integrates with the daemon via cxx-qt bridge for channel control, app routing, and device settings.
 
 ### Verified Working Features
 
@@ -252,18 +252,24 @@ Undertone/
 
 ---
 
-### ⏳ Milestone 7: Device Panel (NOT STARTED)
+### ✅ Milestone 7: Device Panel (COMPLETE)
 
 **Deliverables:**
 
-- [ ] Device status display
-- [ ] Mic gain slider (via ALSA fallback)
-- [ ] Mute toggle
+- [x] Device status display
+- [x] Mic gain slider (via ALSA fallback)
+- [x] Mute toggle
 
-**Current State:**
+**Technical Implementation:**
 
-- ALSA fallback skeleton in `undertone-hid/src/alsa_fallback.rs`
-- Uses `amixer` subprocess (ALSA crate removed due to dependency issues)
+- DevicePage.qml with device connection status, mic controls, audio info
+- Gain slider with visual feedback (0-100%)
+- Mute button with animated indicator when muted
+- Disconnected overlay when device not available
+- Audio configuration display (sample rate, bit depth, latency)
+- Bridge properties: mic_muted, mic_gain
+- Bridge methods: set_mic_gain_value, toggle_mic_mute
+- UiCommand::SetMicGain and UiCommand::ToggleMicMute for IPC
 
 ---
 
@@ -387,20 +393,21 @@ pw-cli list-objects Node | grep ut-
 
 ## Next Steps
 
-1. **Milestone 7: Device Panel**
-   - Implement DevicePage.qml with device status
-   - Add mic gain slider (via ALSA fallback)
-   - Mute toggle with hardware sync
+1. **Milestone 8: Profiles**
+   - Save/load mixer configurations
+   - Default profile on startup
+   - Import/export as JSON
 
 2. **Milestone 3b: Volume Control** (optional enhancement)
    - Add filter nodes for per-channel, per-mix volume control
    - Route mic input to mixes with volume control
    - Apply volume changes to PipeWire nodes
 
-3. **Milestone 8: Profiles**
-   - Save/load mixer configurations
-   - Default profile on startup
-   - Import/export as JSON
+3. **Milestone 10: Polish & Release**
+   - Diagnostics page
+   - Error recovery
+   - Installation scripts
+   - Documentation
 
 ---
 

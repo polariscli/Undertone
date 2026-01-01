@@ -209,15 +209,9 @@ ApplicationWindow {
             controller: controller
         }
 
-        // Device page (placeholder)
-        Rectangle {
-            color: "#1a1a2e"
-            Label {
-                anchors.centerIn: parent
-                text: "Device Settings"
-                color: "#94a3b8"
-                font.pixelSize: 24
-            }
+        // Device page
+        DevicePage {
+            controller: controller
         }
     }
 

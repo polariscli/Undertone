@@ -52,6 +52,8 @@ mod ffi {
         #[qproperty(i32, mix_mode)]
         #[qproperty(i32, channel_count)]
         #[qproperty(i32, app_count)]
+        #[qproperty(bool, mic_muted)]
+        #[qproperty(f32, mic_gain)]
         type UndertoneController = super::UndertoneControllerRust;
 
         /// Change the mix mode (0 = Stream, 1 = Monitor).
@@ -111,6 +113,16 @@ mod ffi {
         /// Get list of available channel names (for dropdown).
         #[qinvokable]
         fn available_channels(self: &UndertoneController) -> QString;
+
+        // Device control methods
+
+        /// Set microphone gain (0.0 - 1.0).
+        #[qinvokable]
+        fn set_mic_gain_value(self: Pin<&mut UndertoneController>, gain: f32);
+
+        /// Toggle microphone mute.
+        #[qinvokable]
+        fn toggle_mic_mute(self: Pin<&mut UndertoneController>);
     }
 }
 
@@ -122,6 +134,8 @@ pub struct UndertoneControllerRust {
     mix_mode: i32,
     channel_count: i32,
     app_count: i32,
+    mic_muted: bool,
+    mic_gain: f32,
 
     // Internal state
     channels: Vec<ChannelData>,
@@ -139,6 +153,8 @@ impl Default for UndertoneControllerRust {
             mix_mode: 0,
             channel_count: 0,
             app_count: 0,
+            mic_muted: false,
+            mic_gain: 0.75,
             channels: Vec::new(),
             apps: Vec::new(),
             state: None,
@@ -153,6 +169,8 @@ pub enum UiCommand {
     SetVolume { channel: String, volume: f32 },
     ToggleMute { channel: String },
     SetAppChannel { app_pattern: String, channel: String },
+    SetMicGain { gain: f32 },
+    ToggleMicMute,
     Refresh,
 }
 
@@ -301,6 +319,27 @@ impl ffi::UndertoneController {
         let names: Vec<&str> = self.channels.iter().map(|c| c.name.as_str()).collect();
         QString::from(names.join(",").as_str())
     }
+
+    /// Set microphone gain.
+    fn set_mic_gain_value(mut self: Pin<&mut Self>, gain: f32) {
+        debug!(gain, "Setting mic gain");
+        self.as_mut().set_mic_gain(gain);
+
+        if let Some(tx) = &self.command_tx {
+            let _ = tx.try_send(UiCommand::SetMicGain { gain });
+        }
+    }
+
+    /// Toggle microphone mute.
+    fn toggle_mic_mute(mut self: Pin<&mut Self>) {
+        let new_muted = !self.mic_muted;
+        debug!(muted = new_muted, "Toggling mic mute");
+        self.as_mut().set_mic_muted(new_muted);
+
+        if let Some(tx) = &self.command_tx {
+            let _ = tx.try_send(UiCommand::ToggleMicMute);
+        }
+    }
 }
 
 impl UndertoneControllerRust {
@@ -330,5 +369,15 @@ impl UndertoneControllerRust {
     pub fn update_apps(&mut self, apps: Vec<AppData>) {
         self.app_count = apps.len() as i32;
         self.apps = apps;
+    }
+
+    /// Update mic mute state.
+    pub fn update_mic_muted(&mut self, muted: bool) {
+        self.mic_muted = muted;
+    }
+
+    /// Update mic gain level.
+    pub fn update_mic_gain(&mut self, gain: f32) {
+        self.mic_gain = gain;
     }
 }
