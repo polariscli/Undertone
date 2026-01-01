@@ -25,7 +25,7 @@ ApplicationWindow {
         interval: 50  // 20 Hz update rate
         running: true
         repeat: true
-        onTriggered: controller.pollUpdates()
+        onTriggered: controller.poll_updates()
     }
 
     // Initialize controller on startup
