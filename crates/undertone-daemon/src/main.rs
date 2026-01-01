@@ -18,6 +18,7 @@ mod signals;
 use undertone_core::channel::ChannelState;
 use undertone_core::state::{DaemonState, StateSnapshot};
 use undertone_db::Database;
+use undertone_hid::{Wave3Device, alsa_fallback::AlsaMicControl};
 use undertone_ipc::{
     AppDiscoveredData, ChannelMuteChangedData, ChannelVolumeChangedData, DeviceConnectedData,
     Event, EventType, IpcServer, socket_path,
@@ -48,6 +49,29 @@ async fn main() -> Result<()> {
     // Open database
     let db = Database::open().context("Failed to open database")?;
     info!("Database initialized");
+
+    // Detect Wave:3 device and set up mic control
+    let (mut device_connected, mut device_serial, mic_control) = match Wave3Device::detect() {
+        Ok(Some(device)) => {
+            let serial = device.serial().to_string();
+            info!(serial = %serial, "Wave:3 device detected");
+
+            let control = device.alsa_card().map(|card| {
+                info!(card = %card, "Using ALSA for mic control");
+                AlsaMicControl::new(card.to_string())
+            });
+
+            (true, Some(serial), control)
+        }
+        Ok(None) => {
+            info!("No Wave:3 device detected, mic control unavailable");
+            (false, None, None)
+        }
+        Err(e) => {
+            warn!(error = %e, "Failed to detect Wave:3 device");
+            (false, None, None)
+        }
+    };
 
     // Load channels from database
     let mut channels: Vec<ChannelState> = db.load_channels().context("Failed to load channels")?;
@@ -180,8 +204,6 @@ async fn main() -> Result<()> {
 
     // Build initial state snapshot
     let mut state = DaemonState::Running;
-    let mut device_connected = false;
-    let mut device_serial: Option<String> = None;
 
     // Load default profile on startup (apply channel states to PipeWire)
     if let Ok(Some(default_profile_name)) = db.get_default_profile() {
@@ -630,13 +652,33 @@ async fn main() -> Result<()> {
                         }
 
                         Command::SetMicGain { gain } => {
-                            // TODO: Apply via ALSA fallback or HID
-                            info!(gain, "Mic gain setting not yet implemented");
+                            if let Some(ref control) = mic_control {
+                                match control.set_volume(gain) {
+                                    Ok(()) => {
+                                        info!(gain, "Mic gain set");
+                                    }
+                                    Err(e) => {
+                                        error!(error = %e, "Failed to set mic gain");
+                                    }
+                                }
+                            } else {
+                                warn!("Mic control not available (no Wave:3 device)");
+                            }
                         }
 
                         Command::SetMicMute { muted } => {
-                            // TODO: Apply via ALSA fallback or HID
-                            info!(muted, "Mic mute setting not yet implemented");
+                            if let Some(ref control) = mic_control {
+                                match control.set_mute(muted) {
+                                    Ok(()) => {
+                                        info!(muted, "Mic mute set");
+                                    }
+                                    Err(e) => {
+                                        error!(error = %e, "Failed to set mic mute");
+                                    }
+                                }
+                            } else {
+                                warn!("Mic control not available (no Wave:3 device)");
+                            }
                         }
 
                         Command::Reconcile => {
