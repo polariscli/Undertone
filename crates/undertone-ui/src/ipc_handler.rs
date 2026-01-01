@@ -75,10 +75,7 @@ impl IpcHandle {
             rt.block_on(run_ipc_loop(state, command_rx, update_tx));
         });
 
-        Self {
-            command_tx,
-            update_rx,
-        }
+        Self { command_tx, update_rx }
     }
 
     /// Send a command to the daemon.
@@ -193,13 +190,9 @@ fn command_to_method(cmd: UiCommand) -> Option<Method> {
             mix: MixType::Stream,
             muted: true, // TODO: Toggle based on current state
         }),
-        UiCommand::SetAppChannel {
-            app_pattern,
-            channel,
-        } => Some(Method::SetAppRoute {
-            app_pattern,
-            channel,
-        }),
+        UiCommand::SetAppChannel { app_pattern, channel } => {
+            Some(Method::SetAppRoute { app_pattern, channel })
+        }
         UiCommand::SetMicGain { gain } => Some(Method::SetMicGain { gain }),
         UiCommand::ToggleMicMute => Some(Method::SetMicMute { muted: true }), // TODO: Toggle
         UiCommand::SaveProfile { name } => Some(Method::SaveProfile { name }),
@@ -238,9 +231,7 @@ fn event_to_update(event: Event) -> Option<IpcUpdate> {
         }
         EventType::DeviceConnected => {
             if let Ok(data) = serde_json::from_value::<DeviceConnectedData>(event.data) {
-                Some(IpcUpdate::DeviceConnected {
-                    serial: Some(data.serial),
-                })
+                Some(IpcUpdate::DeviceConnected { serial: Some(data.serial) })
             } else {
                 Some(IpcUpdate::DeviceConnected { serial: None })
             }
@@ -285,14 +276,10 @@ fn parse_state_response(value: &serde_json::Value) -> Option<IpcUpdate> {
                             .get("monitor_muted")
                             .and_then(|v| v.as_bool())
                             .unwrap_or(false),
-                        level_left: ch
-                            .get("level_left")
-                            .and_then(|v| v.as_f64())
-                            .unwrap_or(0.0) as f32,
-                        level_right: ch
-                            .get("level_right")
-                            .and_then(|v| v.as_f64())
-                            .unwrap_or(0.0) as f32,
+                        level_left: ch.get("level_left").and_then(|v| v.as_f64()).unwrap_or(0.0)
+                            as f32,
+                        level_right: ch.get("level_right").and_then(|v| v.as_f64()).unwrap_or(0.0)
+                            as f32,
                     })
                 })
                 .collect()
@@ -341,20 +328,14 @@ fn parse_state_response(value: &serde_json::Value) -> Option<IpcUpdate> {
         .unwrap_or("Default")
         .to_string();
 
-    let profiles = vec![ProfileData {
-        name: active_profile.clone(),
-        is_default: active_profile == "Default",
-    }];
+    let profiles =
+        vec![ProfileData { name: active_profile.clone(), is_default: active_profile == "Default" }];
 
-    let device_connected = value
-        .get("device_connected")
-        .and_then(|v: &Value| v.as_bool())
-        .unwrap_or(false);
+    let device_connected =
+        value.get("device_connected").and_then(|v: &Value| v.as_bool()).unwrap_or(false);
 
-    let device_serial = value
-        .get("device_serial")
-        .and_then(|v: &Value| v.as_str())
-        .map(String::from);
+    let device_serial =
+        value.get("device_serial").and_then(|v: &Value| v.as_str()).map(String::from);
 
     Some(IpcUpdate::StateUpdated {
         channels,

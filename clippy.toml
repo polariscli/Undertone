@@ -9,9 +9,6 @@ too-many-lines-threshold = 150
 # Maximum number of arguments for functions
 too-many-arguments-threshold = 8
 
-# Maximum number of struct fields
-struct-field-threshold = 12
-
 # Allow certain patterns that are common in this codebase
 allow-unwrap-in-tests = true
 

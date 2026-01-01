@@ -30,17 +30,13 @@ impl NodeInfo {
     /// Check if this is an audio sink.
     #[must_use]
     pub fn is_sink(&self) -> bool {
-        self.media_class
-            .as_ref()
-            .map_or(false, |c| c.contains("Sink"))
+        self.media_class.as_ref().map_or(false, |c| c.contains("Sink"))
     }
 
     /// Check if this is an audio source.
     #[must_use]
     pub fn is_source(&self) -> bool {
-        self.media_class
-            .as_ref()
-            .map_or(false, |c| c.contains("Source"))
+        self.media_class.as_ref().map_or(false, |c| c.contains("Source"))
     }
 
     /// Check if this is a Wave:3 node.

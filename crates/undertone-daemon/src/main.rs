@@ -19,8 +19,8 @@ use undertone_core::channel::ChannelState;
 use undertone_core::state::{DaemonState, StateSnapshot};
 use undertone_db::Database;
 use undertone_ipc::{
-    socket_path, AppDiscoveredData, ChannelMuteChangedData, ChannelVolumeChangedData,
-    DeviceConnectedData, Event, EventType, IpcServer,
+    AppDiscoveredData, ChannelMuteChangedData, ChannelVolumeChangedData, DeviceConnectedData,
+    Event, EventType, IpcServer, socket_path,
 };
 use undertone_pipewire::{GraphEvent, GraphManager, PipeWireRuntime};
 
@@ -39,10 +39,7 @@ async fn main() -> Result<()> {
         )
         .init();
 
-    info!(
-        version = env!("CARGO_PKG_VERSION"),
-        "Starting Undertone daemon"
-    );
+    info!(version = env!("CARGO_PKG_VERSION"), "Starting Undertone daemon");
 
     // Load configuration
     let config = config::load_config()?;
@@ -115,15 +112,29 @@ async fn main() -> Result<()> {
         }
     }
 
+    // Create volume filter nodes for each channel
+    info!("Creating volume filter nodes...");
+    match pw_runtime.create_channel_volume_filters(DEFAULT_CHANNELS) {
+        Ok(created) => {
+            info!(count = created.len(), "Created volume filter nodes");
+            for (name, id) in &created {
+                graph.record_created_node(name.clone(), *id);
+            }
+        }
+        Err(e) => {
+            error!(error = %e, "Failed to create volume filter nodes");
+        }
+    }
+
     // Wait for ports to be discovered before creating links
     info!("Waiting for port discovery...");
     sleep(Duration::from_millis(500)).await;
 
-    // Create links from channels to mix nodes
-    info!("Creating channel-to-mix links...");
-    match pw_runtime.create_channel_to_mix_links() {
+    // Create links from channels through volume filters to mix nodes
+    info!("Creating channel-to-mix links with volume filters...");
+    match pw_runtime.create_channel_to_mix_links_with_filters() {
         Ok(created) => {
-            info!(count = created.len(), "Created channel-to-mix links");
+            info!(count = created.len(), "Created channel-to-mix links with volume filters");
             for (description, id) in &created {
                 graph.record_created_link(description.clone(), *id);
             }
@@ -153,9 +164,8 @@ async fn main() -> Result<()> {
     // Start IPC server
     let socket = socket_path();
     info!(?socket, "Starting IPC server");
-    let (ipc_server, mut request_rx) = IpcServer::bind(&socket)
-        .await
-        .context("Failed to start IPC server")?;
+    let (ipc_server, mut request_rx) =
+        IpcServer::bind(&socket).await.context("Failed to start IPC server")?;
 
     // Get event sender for broadcasting events to IPC clients
     let event_tx = ipc_server.event_sender();
@@ -336,6 +346,21 @@ async fn main() -> Result<()> {
                                 }
                                 info!(channel = %channel, ?mix, volume, "Channel volume updated");
 
+                                // Apply to PipeWire volume filter node
+                                let filter_name = match mix {
+                                    MixType::Stream => format!("ut-ch-{channel}-stream-vol"),
+                                    MixType::Monitor => format!("ut-ch-{channel}-monitor-vol"),
+                                };
+                                if let Some(node_id) = graph.get_created_node_id(&filter_name) {
+                                    if let Err(e) = pw_runtime.set_node_volume(node_id, volume) {
+                                        error!(error = %e, filter = %filter_name, "Failed to set volume on filter node");
+                                    } else {
+                                        debug!(filter = %filter_name, volume, "Volume applied to PipeWire");
+                                    }
+                                } else {
+                                    warn!(filter = %filter_name, "Volume filter node not found");
+                                }
+
                                 // Emit event
                                 let _ = event_tx.send(Event {
                                     event: EventType::ChannelVolumeChanged,
@@ -345,8 +370,6 @@ async fn main() -> Result<()> {
                                         volume,
                                     }).unwrap_or_default(),
                                 });
-
-                                // TODO: Apply to PipeWire when filter nodes are implemented
                             }
                         }
 
@@ -358,6 +381,21 @@ async fn main() -> Result<()> {
                                 }
                                 info!(channel = %channel, ?mix, muted, "Channel mute updated");
 
+                                // Apply to PipeWire volume filter node
+                                let filter_name = match mix {
+                                    MixType::Stream => format!("ut-ch-{channel}-stream-vol"),
+                                    MixType::Monitor => format!("ut-ch-{channel}-monitor-vol"),
+                                };
+                                if let Some(node_id) = graph.get_created_node_id(&filter_name) {
+                                    if let Err(e) = pw_runtime.set_node_mute(node_id, muted) {
+                                        error!(error = %e, filter = %filter_name, "Failed to set mute on filter node");
+                                    } else {
+                                        debug!(filter = %filter_name, muted, "Mute applied to PipeWire");
+                                    }
+                                } else {
+                                    warn!(filter = %filter_name, "Volume filter node not found");
+                                }
+
                                 // Emit event
                                 let _ = event_tx.send(Event {
                                     event: EventType::ChannelMuteChanged,
@@ -367,8 +405,6 @@ async fn main() -> Result<()> {
                                         muted,
                                     }).unwrap_or_default(),
                                 });
-
-                                // TODO: Apply to PipeWire when filter nodes are implemented
                             }
                         }
 

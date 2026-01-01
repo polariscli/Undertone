@@ -35,10 +35,7 @@ impl ErrorInfo {
     /// Create a new error.
     #[must_use]
     pub fn new(code: i32, message: impl Into<String>) -> Self {
-        Self {
-            code,
-            message: message.into(),
-        }
+        Self { code, message: message.into() }
     }
 }
 
@@ -66,24 +63,13 @@ pub enum Method {
 
     // Channel control
     /// Set volume for a channel in a specific mix
-    SetChannelVolume {
-        channel: String,
-        mix: MixType,
-        volume: f32,
-    },
+    SetChannelVolume { channel: String, mix: MixType, volume: f32 },
     /// Set mute state for a channel in a specific mix
-    SetChannelMute {
-        channel: String,
-        mix: MixType,
-        muted: bool,
-    },
+    SetChannelMute { channel: String, mix: MixType, muted: bool },
 
     // App routing
     /// Route an app to a channel
-    SetAppRoute {
-        app_pattern: String,
-        channel: String,
-    },
+    SetAppRoute { app_pattern: String, channel: String },
     /// Remove an app route
     RemoveAppRoute { app_pattern: String },
 

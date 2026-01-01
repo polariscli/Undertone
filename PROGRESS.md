@@ -6,20 +6,21 @@
 
 ---
 
-## Current Status: UI-Daemon Integration Complete (with limitations)
+## Current Status: Volume Control Implemented
 
-The UI connects to the daemon and displays real-time state. However, several features are UI-only and don't actually affect audio.
+The UI connects to the daemon and displays real-time state. Volume control now works - sliders actually change audio levels via PipeWire filter nodes.
 
 ### What Works
 - ✅ UI launches and connects to daemon
 - ✅ Channel strips display with names from daemon
-- ✅ Volume sliders and mute buttons are interactive
+- ✅ **Volume sliders change actual audio** - PipeWire volume filter nodes control per-channel levels
+- ✅ **Mute buttons work** - PipeWire mute property toggled on filter nodes
 - ✅ App routing page shows active audio apps
 - ✅ Device page shows connection status
 - ✅ Profile selector in header
+- ✅ CI/CD infrastructure with GitHub Actions, clippy, rustfmt, cargo-deny
 
 ### What Doesn't Work Yet
-- ❌ **Volume sliders don't change actual audio** - Changes update UI state only, not PipeWire
 - ❌ **VU meters are static** - No real-time level monitoring
 - ❌ **Mic gain/mute is UI-only** - No ALSA/HID backend connected
 - ❌ **Profile save/load is incomplete** - Daemon handlers are stubs
@@ -29,10 +30,14 @@ The UI connects to the daemon and displays real-time state. However, several fea
 ### Verified Working Features
 
 ```bash
-# Virtual nodes created
+# Virtual nodes created (including volume filter nodes)
 $ pw-cli list-objects Node | grep -E "ut-|wave3"
 node.name = "wave3-source"
 node.name = "wave3-null-sink"
+node.name = "ut-ch-system"
+node.name = "ut-ch-system-stream-vol"     # Volume filter for stream mix
+node.name = "ut-ch-system-monitor-vol"    # Volume filter for monitor mix
+# ... and similar for voice, music, browser, game channels
 node.name = "wave3-sink"
 node.name = "ut-ch-system"
 node.name = "ut-ch-voice"
@@ -467,11 +472,11 @@ pw-cli list-objects Node | grep ut-
 
 ### High Priority (Core Functionality)
 
-1. **Milestone 3b: Volume Control** - Make sliders actually work
-   - [ ] Create PipeWire filter/volume nodes between channels and mixes
-   - [ ] Apply `SetChannelVolume` commands to PipeWire nodes
-   - [ ] Apply `SetChannelMute` by setting volume to 0 or unlinking
-   - [ ] Route mic input (wave3-source) to mixes with volume control
+1. **Milestone 3b: Volume Control** - ✅ COMPLETED
+   - [x] Create PipeWire filter/volume nodes between channels and mixes
+   - [x] Apply `SetChannelVolume` commands to PipeWire nodes
+   - [x] Apply `SetChannelMute` by setting mute property on nodes
+   - [ ] Route mic input (wave3-source) to mixes with volume control (deferred to mic control milestone)
 
 2. **App Routing Implementation** - Make channel assignment work
    - [ ] When app route changes, update PipeWire links

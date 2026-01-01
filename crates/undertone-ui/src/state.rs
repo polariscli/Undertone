@@ -1,7 +1,7 @@
 //! UI state management.
 
-use std::sync::Arc;
 use arc_swap::ArcSwap;
+use std::sync::Arc;
 use undertone_core::channel::ChannelState;
 use undertone_core::mixer::MixType;
 

@@ -1,6 +1,6 @@
 //! Request handling for the IPC server.
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use tracing::{debug, info};
 
 use undertone_core::command::Command;
@@ -15,24 +15,15 @@ pub struct HandleResult {
 
 impl HandleResult {
     fn ok(value: Value) -> Self {
-        Self {
-            response: Ok(value),
-            command: None,
-        }
+        Self { response: Ok(value), command: None }
     }
 
     fn ok_with_command(value: Value, command: Command) -> Self {
-        Self {
-            response: Ok(value),
-            command: Some(command),
-        }
+        Self { response: Ok(value), command: Some(command) }
     }
 
     fn err(error: ErrorInfo) -> Self {
-        Self {
-            response: Err(error),
-            command: None,
-        }
+        Self { response: Err(error), command: None }
     }
 }
 
@@ -82,11 +73,7 @@ pub fn handle_request(method: &Method, state: &StateSnapshot) -> HandleResult {
             "created_links": state.created_links.len(),
         })),
 
-        Method::SetChannelVolume {
-            channel,
-            mix,
-            volume,
-        } => {
+        Method::SetChannelVolume { channel, mix, volume } => {
             // Validate channel exists
             if !state.channels.iter().any(|c| &c.config.name == channel) {
                 return HandleResult::err(ErrorInfo::new(
@@ -99,19 +86,11 @@ pub fn handle_request(method: &Method, state: &StateSnapshot) -> HandleResult {
             debug!(?channel, ?mix, volume, "Setting channel volume");
             HandleResult::ok_with_command(
                 json!({"success": true, "volume": volume}),
-                Command::SetChannelVolume {
-                    channel: channel.clone(),
-                    mix: *mix,
-                    volume,
-                },
+                Command::SetChannelVolume { channel: channel.clone(), mix: *mix, volume },
             )
         }
 
-        Method::SetChannelMute {
-            channel,
-            mix,
-            muted,
-        } => {
+        Method::SetChannelMute { channel, mix, muted } => {
             // Validate channel exists
             if !state.channels.iter().any(|c| &c.config.name == channel) {
                 return HandleResult::err(ErrorInfo::new(
@@ -122,18 +101,11 @@ pub fn handle_request(method: &Method, state: &StateSnapshot) -> HandleResult {
             debug!(?channel, ?mix, muted, "Setting channel mute");
             HandleResult::ok_with_command(
                 json!({"success": true, "muted": muted}),
-                Command::SetChannelMute {
-                    channel: channel.clone(),
-                    mix: *mix,
-                    muted: *muted,
-                },
+                Command::SetChannelMute { channel: channel.clone(), mix: *mix, muted: *muted },
             )
         }
 
-        Method::SetAppRoute {
-            app_pattern,
-            channel,
-        } => {
+        Method::SetAppRoute { app_pattern, channel } => {
             // Validate channel exists
             if !state.channels.iter().any(|c| &c.config.name == channel) {
                 return HandleResult::err(ErrorInfo::new(
@@ -144,10 +116,7 @@ pub fn handle_request(method: &Method, state: &StateSnapshot) -> HandleResult {
             info!(?app_pattern, ?channel, "Setting app route");
             HandleResult::ok_with_command(
                 json!({"success": true}),
-                Command::SetAppRoute {
-                    app_pattern: app_pattern.clone(),
-                    channel: channel.clone(),
-                },
+                Command::SetAppRoute { app_pattern: app_pattern.clone(), channel: channel.clone() },
             )
         }
 
@@ -155,9 +124,7 @@ pub fn handle_request(method: &Method, state: &StateSnapshot) -> HandleResult {
             info!(?app_pattern, "Removing app route");
             HandleResult::ok_with_command(
                 json!({"success": true}),
-                Command::RemoveAppRoute {
-                    app_pattern: app_pattern.clone(),
-                },
+                Command::RemoveAppRoute { app_pattern: app_pattern.clone() },
             )
         }
 

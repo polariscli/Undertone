@@ -1,9 +1,9 @@
 //! PipeWire graph management.
 
+use parking_lot::RwLock;
 use std::collections::HashMap;
 use std::sync::Arc;
-use parking_lot::RwLock;
-use tracing::{debug, info, warn};
+use tracing::debug;
 
 use crate::link::LinkInfo;
 use crate::node::{NodeInfo, PortDirection, PortInfo};
@@ -84,22 +84,13 @@ impl GraphManager {
     /// Get ports for a node.
     #[must_use]
     pub fn get_ports_for_node(&self, node_id: u32) -> Vec<PortInfo> {
-        self.ports
-            .read()
-            .values()
-            .filter(|p| p.node_id == node_id)
-            .cloned()
-            .collect()
+        self.ports.read().values().filter(|p| p.node_id == node_id).cloned().collect()
     }
 
     /// Get a port by node ID and port name.
     #[must_use]
     pub fn get_port_by_name(&self, node_id: u32, port_name: &str) -> Option<PortInfo> {
-        self.ports
-            .read()
-            .values()
-            .find(|p| p.node_id == node_id && p.name == port_name)
-            .cloned()
+        self.ports.read().values().find(|p| p.node_id == node_id && p.name == port_name).cloned()
     }
 
     /// Get input ports for a node.
@@ -189,23 +180,13 @@ impl GraphManager {
     /// Get all Wave:3 nodes.
     #[must_use]
     pub fn get_wave3_nodes(&self) -> Vec<NodeInfo> {
-        self.nodes
-            .read()
-            .values()
-            .filter(|n| n.is_wave3())
-            .cloned()
-            .collect()
+        self.nodes.read().values().filter(|n| n.is_wave3()).cloned().collect()
     }
 
     /// Get all Undertone channel nodes.
     #[must_use]
     pub fn get_undertone_channels(&self) -> Vec<NodeInfo> {
-        self.nodes
-            .read()
-            .values()
-            .filter(|n| n.is_undertone_channel())
-            .cloned()
-            .collect()
+        self.nodes.read().values().filter(|n| n.is_undertone_channel()).cloned().collect()
     }
 
     /// Get all audio client nodes (apps producing audio).

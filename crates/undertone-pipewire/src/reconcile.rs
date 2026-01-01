@@ -1,7 +1,7 @@
 //! State reconciliation for self-healing.
 
 use std::sync::Arc;
-use tracing::{debug, info, warn};
+use tracing::info;
 
 use undertone_core::channel::ChannelConfig;
 
@@ -14,12 +14,7 @@ pub enum ReconcileAction {
     /// Create a virtual sink node
     CreateSink(VirtualSinkProps),
     /// Create a link between nodes
-    CreateLink {
-        output_node: String,
-        output_port: String,
-        input_node: String,
-        input_port: String,
-    },
+    CreateLink { output_node: String, output_port: String, input_node: String, input_port: String },
     /// Destroy a node
     DestroyNode(u32),
     /// Destroy a link
@@ -70,10 +65,8 @@ impl Reconciler {
         for (name, description) in required_mixes {
             if self.graph.get_node_by_name(name).is_none() {
                 info!(name, "Mix node missing, will create");
-                actions.push(ReconcileAction::CreateSink(VirtualSinkProps::stereo(
-                    name,
-                    description,
-                )));
+                actions
+                    .push(ReconcileAction::CreateSink(VirtualSinkProps::stereo(name, description)));
             }
         }
 

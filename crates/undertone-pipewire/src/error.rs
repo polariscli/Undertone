@@ -28,6 +28,9 @@ pub enum PwError {
 
     #[error("Property not found: {0}")]
     PropertyNotFound(String),
+
+    #[error("Volume control failed: {0}")]
+    VolumeControlFailed(String),
 }
 
 /// Result type for PipeWire operations.

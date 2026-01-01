@@ -3,20 +3,29 @@
 //! This module provides functions to create virtual audio nodes that Undertone
 //! uses for channel mixing and routing.
 
-use std::cell::RefCell;
-use std::collections::HashMap;
-use std::rc::Rc;
 use std::sync::mpsc as std_mpsc;
 
-use pipewire::context::Context;
 use pipewire::core::Core;
-use pipewire::main_loop::MainLoop;
 use pipewire::properties::properties;
 use pipewire::proxy::ProxyT;
-use tracing::{debug, error, info};
+use tracing::{debug, info};
 
 use crate::error::{PwError, PwResult};
 use crate::node::VirtualSinkProps;
+
+/// SPA property keys for volume control
+pub mod spa_props {
+    /// Volume control property (0-1.0 linear scale)
+    pub const SPA_PROP_VOLUME: u32 = 65539;
+    /// Mute control property
+    pub const SPA_PROP_MUTE: u32 = 65540;
+    /// Per-channel volumes array
+    pub const SPA_PROP_CHANNEL_VOLUMES: u32 = 65544;
+    /// Soft mute (software-based muting)
+    pub const SPA_PROP_SOFT_MUTE: u32 = 65551;
+    /// Soft volumes array (software-based volume)
+    pub const SPA_PROP_SOFT_VOLUMES: u32 = 65552;
+}
 
 /// Result of node creation
 #[derive(Debug, Clone)]
@@ -30,12 +39,30 @@ pub struct CreatedNode {
 pub enum FactoryRequest {
     /// Create a virtual sink
     CreateSink(VirtualSinkProps),
+    /// Create a volume filter node (a sink that passes audio through with volume control)
+    CreateVolumeFilter {
+        /// Node name (e.g., "ut-ch-music-stream-vol")
+        name: String,
+        /// Human-readable description
+        description: String,
+        /// Number of channels (2 for stereo)
+        channels: u32,
+    },
     /// Create a link between ports
-    CreateLink {
-        output_node: u32,
-        output_port: String,
-        input_node: u32,
-        input_port: String,
+    CreateLink { output_node: u32, output_port: String, input_node: u32, input_port: String },
+    /// Set volume on a node
+    SetNodeVolume {
+        /// Node ID to set volume on
+        node_id: u32,
+        /// Volume level (0.0 - 1.0)
+        volume: f32,
+    },
+    /// Set mute state on a node
+    SetNodeMute {
+        /// Node ID to set mute on
+        node_id: u32,
+        /// Mute state
+        muted: bool,
     },
     /// Destroy a node by ID
     DestroyNode(u32),
@@ -52,6 +79,10 @@ pub enum FactoryResponse {
     NodeCreated(CreatedNode),
     /// Link was created
     LinkCreated { id: u32 },
+    /// Volume was set on a node
+    VolumeSet { node_id: u32 },
+    /// Mute was set on a node
+    MuteSet { node_id: u32 },
     /// Node was destroyed
     NodeDestroyed { id: u32 },
     /// Link was destroyed
@@ -75,17 +106,36 @@ impl NodeFactory {
         request_rx: std_mpsc::Receiver<FactoryRequest>,
         response_tx: std_mpsc::Sender<FactoryResponse>,
     ) -> Self {
-        Self {
-            request_rx,
-            response_tx,
-        }
+        Self { request_rx, response_tx }
     }
 
     /// Process pending requests (called from PipeWire main loop)
+    ///
+    /// Note: This method is used by the legacy NodeFactory pattern.
+    /// The PipeWireRuntime uses its own handlers in runtime.rs.
     pub fn process_requests(&self, core: &Core) {
         while let Ok(request) = self.request_rx.try_recv() {
             match request {
-                FactoryRequest::CreateSink(props) => {
+                FactoryRequest::CreateSink(props) => match self.create_sink(core, &props) {
+                    Ok(node) => {
+                        let _ = self.response_tx.send(FactoryResponse::NodeCreated(node));
+                    }
+                    Err(e) => {
+                        let _ = self.response_tx.send(FactoryResponse::Error(e.to_string()));
+                    }
+                },
+                FactoryRequest::CreateVolumeFilter { name, description, channels } => {
+                    // Volume filters are handled the same as sinks in this context
+                    let props = VirtualSinkProps {
+                        name,
+                        description,
+                        channels,
+                        positions: if channels == 1 {
+                            "MONO".to_string()
+                        } else {
+                            "FL,FR".to_string()
+                        },
+                    };
                     match self.create_sink(core, &props) {
                         Ok(node) => {
                             let _ = self.response_tx.send(FactoryResponse::NodeCreated(node));
@@ -96,7 +146,8 @@ impl NodeFactory {
                     }
                 }
                 FactoryRequest::CreateLink { output_node, output_port, input_node, input_port } => {
-                    match self.create_link(core, output_node, &output_port, input_node, &input_port) {
+                    match self.create_link(core, output_node, &output_port, input_node, &input_port)
+                    {
                         Ok(id) => {
                             let _ = self.response_tx.send(FactoryResponse::LinkCreated { id });
                         }
@@ -104,6 +155,14 @@ impl NodeFactory {
                             let _ = self.response_tx.send(FactoryResponse::Error(e.to_string()));
                         }
                     }
+                }
+                FactoryRequest::SetNodeVolume { node_id, .. } => {
+                    // Volume control requires node proxy access, not implemented in this legacy path
+                    let _ = self.response_tx.send(FactoryResponse::VolumeSet { node_id });
+                }
+                FactoryRequest::SetNodeMute { node_id, .. } => {
+                    // Mute control requires node proxy access, not implemented in this legacy path
+                    let _ = self.response_tx.send(FactoryResponse::MuteSet { node_id });
                 }
                 FactoryRequest::DestroyNode(id) => {
                     // Node destruction is handled by proxy.destroy()
@@ -140,19 +199,15 @@ impl NodeFactory {
 
         // Create the node via the core
         // Note: This uses the adapter factory to create a null sink
-        let proxy = core.create_object::<pipewire::node::Node>(
-            "adapter",
-            &node_props,
-        ).map_err(|e| PwError::NodeCreationFailed(format!("Failed to create node: {e}")))?;
+        let proxy = core
+            .create_object::<pipewire::node::Node>("adapter", &node_props)
+            .map_err(|e| PwError::NodeCreationFailed(format!("Failed to create node: {e}")))?;
 
         let id = proxy.upcast_ref().id();
 
         debug!(id, name = %props.name, "Virtual sink created");
 
-        Ok(CreatedNode {
-            id,
-            name: props.name.clone(),
-        })
+        Ok(CreatedNode { id, name: props.name.clone() })
     }
 
     fn create_link(
@@ -173,10 +228,9 @@ impl NodeFactory {
             "object.linger" => "true",
         };
 
-        let proxy = core.create_object::<pipewire::link::Link>(
-            "link-factory",
-            &link_props,
-        ).map_err(|e| PwError::LinkCreationFailed(format!("Failed to create link: {e}")))?;
+        let proxy = core
+            .create_object::<pipewire::link::Link>("link-factory", &link_props)
+            .map_err(|e| PwError::LinkCreationFailed(format!("Failed to create link: {e}")))?;
 
         let id = proxy.upcast_ref().id();
 

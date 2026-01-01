@@ -59,12 +59,6 @@ impl LinkParams {
     /// Create link parameters.
     #[must_use]
     pub fn new(output_node: u32, output_port: u32, input_node: u32, input_port: u32) -> Self {
-        Self {
-            output_node,
-            output_port,
-            input_node,
-            input_port,
-            linger: true,
-        }
+        Self { output_node, output_port, input_node, input_port, linger: true }
     }
 }

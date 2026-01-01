@@ -14,9 +14,9 @@ pub fn setup_signal_handlers() -> Result<mpsc::Receiver<()>> {
     // Handle SIGTERM
     let tx_term = tx.clone();
     tokio::spawn(async move {
-        if let Ok(mut stream) = tokio::signal::unix::signal(
-            tokio::signal::unix::SignalKind::terminate(),
-        ) {
+        if let Ok(mut stream) =
+            tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+        {
             stream.recv().await;
             info!("Received SIGTERM");
             let _ = tx_term.send(()).await;

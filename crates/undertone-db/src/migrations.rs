@@ -43,11 +43,7 @@ fn get_version(conn: &Connection) -> DbResult<i32> {
     }
 
     let version: i32 = conn
-        .query_row(
-            "SELECT COALESCE(MAX(version), 0) FROM schema_version",
-            [],
-            |row| row.get(0),
-        )
+        .query_row("SELECT COALESCE(MAX(version), 0) FROM schema_version", [], |row| row.get(0))
         .unwrap_or(0);
 
     Ok(version)
@@ -59,15 +55,10 @@ fn apply_migration(conn: &Connection, version: i32) -> DbResult<()> {
         1 => {
             conn.execute_batch(SCHEMA_V1)?;
             conn.execute_batch(DEFAULT_DATA)?;
-            conn.execute(
-                "INSERT INTO schema_version (version) VALUES (?)",
-                [version],
-            )?;
+            conn.execute("INSERT INTO schema_version (version) VALUES (?)", [version])?;
         }
         _ => {
-            return Err(DbError::MigrationFailed(format!(
-                "Unknown migration version: {version}"
-            )));
+            return Err(DbError::MigrationFailed(format!("Unknown migration version: {version}")));
         }
     }
 
@@ -89,9 +80,8 @@ mod tests {
         assert_eq!(version, CURRENT_VERSION);
 
         // Verify default channels exist
-        let count: i32 = conn
-            .query_row("SELECT COUNT(*) FROM channels", [], |row| row.get(0))
-            .unwrap();
+        let count: i32 =
+            conn.query_row("SELECT COUNT(*) FROM channels", [], |row| row.get(0)).unwrap();
         assert_eq!(count, 5);
     }
 }

@@ -82,7 +82,8 @@ impl GraphMonitor {
             .connect(None)
             .map_err(|e| PwError::ConnectionFailed(format!("Failed to connect: {e}")))?;
 
-        let registry = core.get_registry()
+        let registry = core
+            .get_registry()
             .map_err(|e| PwError::RegistryError(format!("Failed to get registry: {e}")))?;
 
         info!("Connected to PipeWire");
@@ -127,15 +128,13 @@ impl GraphMonitor {
 
         match global.type_ {
             ObjectType::Node => {
-                let name = props
-                    .and_then(|p| p.get("node.name"))
-                    .unwrap_or("unknown")
-                    .to_string();
+                let name = props.and_then(|p| p.get("node.name")).unwrap_or("unknown").to_string();
 
                 let description = props.and_then(|p| p.get("node.description")).map(String::from);
                 let media_class = props.and_then(|p| p.get("media.class")).map(String::from);
                 let app_name = props.and_then(|p| p.get("application.name")).map(String::from);
-                let binary = props.and_then(|p| p.get("application.process.binary")).map(String::from);
+                let binary =
+                    props.and_then(|p| p.get("application.process.binary")).map(String::from);
                 let pid = props
                     .and_then(|p| p.get("application.process.id"))
                     .and_then(|s| s.parse().ok());
@@ -152,11 +151,7 @@ impl GraphMonitor {
                     pid,
                     is_undertone_managed: is_undertone,
                     properties: props
-                        .map(|p| {
-                            p.iter()
-                                .map(|(k, v)| (k.to_string(), v.to_string()))
-                                .collect()
-                        })
+                        .map(|p| p.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect())
                         .unwrap_or_default(),
                 };
 
@@ -174,10 +169,8 @@ impl GraphMonitor {
                 // Check for Wave:3
                 if node_info.is_wave3() && node_info.name == "wave3-source" {
                     info!("Wave:3 microphone detected");
-                    let serial = props
-                        .and_then(|p| p.get("device.serial"))
-                        .unwrap_or("unknown")
-                        .to_string();
+                    let serial =
+                        props.and_then(|p| p.get("device.serial")).unwrap_or("unknown").to_string();
                     let _ = event_tx.blocking_send(GraphEvent::Wave3Detected { serial });
                 }
 
@@ -192,36 +185,19 @@ impl GraphMonitor {
             }
 
             ObjectType::Port => {
-                let name = props
-                    .and_then(|p| p.get("port.name"))
-                    .unwrap_or("unknown")
-                    .to_string();
+                let name = props.and_then(|p| p.get("port.name")).unwrap_or("unknown").to_string();
 
-                let node_id = props
-                    .and_then(|p| p.get("node.id"))
-                    .and_then(|s| s.parse().ok())
-                    .unwrap_or(0);
+                let node_id =
+                    props.and_then(|p| p.get("node.id")).and_then(|s| s.parse().ok()).unwrap_or(0);
 
                 let direction = props
                     .and_then(|p| p.get("port.direction"))
-                    .map(|d| {
-                        if d == "in" {
-                            PortDirection::Input
-                        } else {
-                            PortDirection::Output
-                        }
-                    })
+                    .map(|d| if d == "in" { PortDirection::Input } else { PortDirection::Output })
                     .unwrap_or(PortDirection::Output);
 
                 let channel = props.and_then(|p| p.get("audio.channel")).map(String::from);
 
-                let port_info = PortInfo {
-                    id: global.id,
-                    name,
-                    direction,
-                    node_id,
-                    channel,
-                };
+                let port_info = PortInfo { id: global.id, name, direction, node_id, channel };
 
                 graph.add_port(port_info.clone());
                 let _ = event_tx.blocking_send(GraphEvent::PortAdded(port_info));

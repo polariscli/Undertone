@@ -36,9 +36,7 @@ impl RouteRule {
             PatternType::Prefix => app_name.starts_with(&self.pattern),
             PatternType::Regex => {
                 // TODO: Compile and cache regex
-                regex::Regex::new(&self.pattern)
-                    .map(|re| re.is_match(app_name))
-                    .unwrap_or(false)
+                regex::Regex::new(&self.pattern).map(|re| re.is_match(app_name)).unwrap_or(false)
             }
         }
     }

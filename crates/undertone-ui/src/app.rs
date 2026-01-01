@@ -17,9 +17,7 @@ impl Application {
     /// Create a new application.
     #[must_use]
     pub fn new() -> Self {
-        Self {
-            state: Arc::new(UiState::new()),
-        }
+        Self { state: Arc::new(UiState::new()) }
     }
 
     /// Run the application.

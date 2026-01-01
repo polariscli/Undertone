@@ -2,13 +2,13 @@
 
 use std::collections::HashMap;
 use std::path::Path;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use futures::SinkExt;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::{UnixListener, UnixStream};
-use tokio::sync::{broadcast, mpsc, RwLock};
+use tokio::sync::{RwLock, broadcast, mpsc};
 use tracing::{debug, error, info, warn};
 
 use crate::error::IpcResult;
@@ -34,7 +34,9 @@ impl IpcServer {
     ///
     /// # Errors
     /// Returns an error if the socket cannot be created.
-    pub async fn bind(socket_path: &Path) -> IpcResult<(Self, mpsc::Receiver<(u64, Request, mpsc::Sender<Response>)>)> {
+    pub async fn bind(
+        socket_path: &Path,
+    ) -> IpcResult<(Self, mpsc::Receiver<(u64, Request, mpsc::Sender<Response>)>)> {
         // Ensure parent directory exists
         if let Some(parent) = socket_path.parent() {
             tokio::fs::create_dir_all(parent).await?;
@@ -76,7 +78,10 @@ impl IpcServer {
                     let request_tx = self.request_tx.clone();
 
                     tokio::spawn(async move {
-                        if let Err(e) = Self::handle_client(client_id, stream, clients, event_rx, request_tx).await {
+                        if let Err(e) =
+                            Self::handle_client(client_id, stream, clients, event_rx, request_tx)
+                                .await
+                        {
                             error!(client_id, error = %e, "Client error");
                         }
                     });
@@ -114,10 +119,10 @@ impl IpcServer {
         // Register client
         {
             let mut clients = clients.write().await;
-            clients.insert(client_id, ClientHandle {
-                subscriptions: Vec::new(),
-                response_tx: response_tx.clone(),
-            });
+            clients.insert(
+                client_id,
+                ClientHandle { subscriptions: Vec::new(), response_tx: response_tx.clone() },
+            );
         }
 
         loop {

@@ -1,6 +1,6 @@
 //! Database query functions.
 
-use rusqlite::{params, Row};
+use rusqlite::{Row, params};
 use undertone_core::{
     channel::{ChannelConfig, ChannelState},
     routing::{PatternType, RouteRule},
@@ -118,15 +118,18 @@ impl Database {
 
     /// Delete a routing rule.
     pub fn delete_route(&self, pattern: &str) -> DbResult<()> {
-        self.conn.execute(
-            "DELETE FROM app_routes WHERE pattern = ?",
-            params![pattern],
-        )?;
+        self.conn.execute("DELETE FROM app_routes WHERE pattern = ?", params![pattern])?;
         Ok(())
     }
 
     /// Log an event to the database.
-    pub fn log_event(&self, level: &str, source: &str, message: &str, data: Option<&str>) -> DbResult<()> {
+    pub fn log_event(
+        &self,
+        level: &str,
+        source: &str,
+        message: &str,
+        data: Option<&str>,
+    ) -> DbResult<()> {
         self.conn.execute(
             "INSERT INTO event_log (level, source, message, data) VALUES (?, ?, ?, ?)",
             params![level, source, message, data],

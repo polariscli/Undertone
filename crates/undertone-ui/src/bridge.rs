@@ -33,10 +33,7 @@ fn get_ui_data() -> &'static Mutex<UiDataCache> {
         Mutex::new(UiDataCache {
             channels: Vec::new(),
             apps: Vec::new(),
-            profiles: vec![ProfileData {
-                name: "Default".to_string(),
-                is_default: true,
-            }],
+            profiles: vec![ProfileData { name: "Default".to_string(), is_default: true }],
         })
     })
 }
@@ -55,9 +52,7 @@ fn send_command(cmd: UiCommand) {
 pub fn init_ipc(state: Arc<UiState>) -> mpsc::Sender<UiCommand> {
     let handle = IpcHandle::start(state);
     let sender = handle.command_sender();
-    IPC_HANDLE
-        .set(Mutex::new(handle))
-        .expect("IPC handle already initialized");
+    IPC_HANDLE.set(Mutex::new(handle)).expect("IPC handle already initialized");
     info!("IPC handle initialized");
     sender
 }
@@ -165,7 +160,11 @@ mod ffi {
 
         /// Set app channel routing.
         #[qinvokable]
-        fn set_app_channel(self: Pin<&mut UndertoneController>, app_pattern: QString, channel: QString);
+        fn set_app_channel(
+            self: Pin<&mut UndertoneController>,
+            app_pattern: QString,
+            channel: QString,
+        );
 
         /// Get list of available channel names (for dropdown).
         #[qinvokable]
@@ -260,11 +259,7 @@ pub enum UiCommand {
 impl ffi::UndertoneController {
     /// Change the mix mode.
     fn change_mix_mode(mut self: Pin<&mut Self>, mode: i32) {
-        let mix = if mode == 0 {
-            MixType::Stream
-        } else {
-            MixType::Monitor
-        };
+        let mix = if mode == 0 { MixType::Stream } else { MixType::Monitor };
         debug!(?mix, "Changing mix mode");
 
         self.as_mut().set_mix_mode(mode);
@@ -276,10 +271,7 @@ impl ffi::UndertoneController {
         let channel_name = channel.to_string();
         debug!(channel = %channel_name, volume, "Setting channel volume");
 
-        send_command(UiCommand::SetVolume {
-            channel: channel_name,
-            volume,
-        });
+        send_command(UiCommand::SetVolume { channel: channel_name, volume });
     }
 
     /// Toggle mute for a channel.
@@ -287,19 +279,13 @@ impl ffi::UndertoneController {
         let channel_name = channel.to_string();
         debug!(channel = %channel_name, "Toggling channel mute");
 
-        send_command(UiCommand::ToggleMute {
-            channel: channel_name,
-        });
+        send_command(UiCommand::ToggleMute { channel: channel_name });
     }
 
     /// Get channel name by index.
     fn channel_name(&self, index: i32) -> QString {
         if let Ok(cache) = get_ui_data().lock() {
-            cache
-                .channels
-                .get(index as usize)
-                .map(|c| QString::from(&c.name))
-                .unwrap_or_default()
+            cache.channels.get(index as usize).map(|c| QString::from(&c.name)).unwrap_or_default()
         } else {
             QString::default()
         }
@@ -324,13 +310,7 @@ impl ffi::UndertoneController {
             cache
                 .channels
                 .get(index as usize)
-                .map(|c| {
-                    if self.mix_mode == 0 {
-                        c.stream_volume
-                    } else {
-                        c.monitor_volume
-                    }
-                })
+                .map(|c| if self.mix_mode == 0 { c.stream_volume } else { c.monitor_volume })
                 .unwrap_or(1.0)
         } else {
             1.0
@@ -343,13 +323,7 @@ impl ffi::UndertoneController {
             cache
                 .channels
                 .get(index as usize)
-                .map(|c| {
-                    if self.mix_mode == 0 {
-                        c.stream_muted
-                    } else {
-                        c.monitor_muted
-                    }
-                })
+                .map(|c| if self.mix_mode == 0 { c.stream_muted } else { c.monitor_muted })
                 .unwrap_or(false)
         } else {
             false
@@ -365,11 +339,7 @@ impl ffi::UndertoneController {
     /// Get app name by index.
     fn app_name(&self, index: i32) -> QString {
         if let Ok(cache) = get_ui_data().lock() {
-            cache
-                .apps
-                .get(index as usize)
-                .map(|a| QString::from(&a.name))
-                .unwrap_or_default()
+            cache.apps.get(index as usize).map(|a| QString::from(&a.name)).unwrap_or_default()
         } else {
             QString::default()
         }
@@ -391,11 +361,7 @@ impl ffi::UndertoneController {
     /// Get app's current channel by index.
     fn app_channel(&self, index: i32) -> QString {
         if let Ok(cache) = get_ui_data().lock() {
-            cache
-                .apps
-                .get(index as usize)
-                .map(|a| QString::from(&a.channel))
-                .unwrap_or_default()
+            cache.apps.get(index as usize).map(|a| QString::from(&a.channel)).unwrap_or_default()
         } else {
             QString::default()
         }
@@ -404,10 +370,7 @@ impl ffi::UndertoneController {
     /// Check if app route is persistent by index.
     fn app_persistent(&self, index: i32) -> bool {
         if let Ok(cache) = get_ui_data().lock() {
-            cache
-                .apps
-                .get(index as usize)
-                .is_some_and(|a| a.is_persistent)
+            cache.apps.get(index as usize).is_some_and(|a| a.is_persistent)
         } else {
             false
         }
@@ -419,10 +382,7 @@ impl ffi::UndertoneController {
         let channel_name = channel.to_string();
         debug!(app = %pattern, channel = %channel_name, "Setting app channel");
 
-        send_command(UiCommand::SetAppChannel {
-            app_pattern: pattern,
-            channel: channel_name,
-        });
+        send_command(UiCommand::SetAppChannel { app_pattern: pattern, channel: channel_name });
     }
 
     /// Get list of available channel names (comma-separated for QML).
@@ -453,11 +413,7 @@ impl ffi::UndertoneController {
     /// Get profile name by index.
     fn profile_name(&self, index: i32) -> QString {
         if let Ok(cache) = get_ui_data().lock() {
-            cache
-                .profiles
-                .get(index as usize)
-                .map(|p| QString::from(&p.name))
-                .unwrap_or_default()
+            cache.profiles.get(index as usize).map(|p| QString::from(&p.name)).unwrap_or_default()
         } else {
             QString::default()
         }
@@ -466,10 +422,7 @@ impl ffi::UndertoneController {
     /// Check if profile is default by index.
     fn profile_is_default(&self, index: i32) -> bool {
         if let Ok(cache) = get_ui_data().lock() {
-            cache
-                .profiles
-                .get(index as usize)
-                .is_some_and(|p| p.is_default)
+            cache.profiles.get(index as usize).is_some_and(|p| p.is_default)
         } else {
             false
         }
@@ -550,8 +503,7 @@ impl ffi::UndertoneController {
                 self.as_mut().set_connected(device_connected);
                 self.as_mut()
                     .set_device_serial(QString::from(device_serial.as_deref().unwrap_or("")));
-                self.as_mut()
-                    .set_active_profile(QString::from(active_profile.as_str()));
+                self.as_mut().set_active_profile(QString::from(active_profile.as_str()));
 
                 // Update global cache for vector data
                 if let Ok(mut cache) = get_ui_data().lock() {
@@ -595,8 +547,7 @@ impl ffi::UndertoneController {
             IpcUpdate::DeviceConnected { serial } => {
                 info!(?serial, "Device connected");
                 self.as_mut().set_connected(true);
-                self.as_mut()
-                    .set_device_serial(QString::from(serial.as_deref().unwrap_or("")));
+                self.as_mut().set_device_serial(QString::from(serial.as_deref().unwrap_or("")));
             }
             IpcUpdate::DeviceDisconnected => {
                 info!("Device disconnected");
@@ -609,4 +560,3 @@ impl ffi::UndertoneController {
         }
     }
 }
-

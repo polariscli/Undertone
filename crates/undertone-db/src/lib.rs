@@ -73,8 +73,7 @@ impl Database {
 
     /// Get the default database path.
     fn default_path() -> DbResult<PathBuf> {
-        let dirs = ProjectDirs::from("com", "undertone", "Undertone")
-            .ok_or(DbError::NoDataDir)?;
+        let dirs = ProjectDirs::from("com", "undertone", "Undertone").ok_or(DbError::NoDataDir)?;
         Ok(dirs.data_dir().join("undertone.db"))
     }
 

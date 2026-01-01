@@ -30,13 +30,9 @@ impl Wave3Device {
             info!(card = %card, "Wave:3 detected via ALSA");
 
             // Try to get serial from ALSA card info
-            let serial = Self::get_serial_from_alsa(&card)
-                .unwrap_or_else(|| "unknown".to_string());
+            let serial = Self::get_serial_from_alsa(&card).unwrap_or_else(|| "unknown".to_string());
 
-            return Ok(Some(Self {
-                serial,
-                alsa_card: Some(card),
-            }));
+            return Ok(Some(Self { serial, alsa_card: Some(card) }));
         }
 
         // TODO: Try USB enumeration as fallback
@@ -62,8 +58,8 @@ impl Wave3Device {
     /// Find the ALSA card for Wave:3.
     fn find_alsa_card() -> HidResult<Option<String>> {
         // Read /proc/asound/cards to find Wave:3
-        let cards = std::fs::read_to_string("/proc/asound/cards")
-            .map_err(|e| HidError::IoError(e))?;
+        let cards =
+            std::fs::read_to_string("/proc/asound/cards").map_err(|e| HidError::IoError(e))?;
 
         for line in cards.lines() {
             if line.contains("Wave:3") || line.contains("Wave 3") {

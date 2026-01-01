@@ -45,9 +45,7 @@ pub struct DaemonConfig {
 
 impl Default for DaemonConfig {
     fn default() -> Self {
-        Self {
-            log_level: default_log_level(),
-        }
+        Self { log_level: default_log_level() }
     }
 }
 
@@ -78,9 +76,7 @@ pub struct ChannelsConfig {
 
 impl Default for ChannelsConfig {
     fn default() -> Self {
-        Self {
-            defaults: default_channels(),
-        }
+        Self { defaults: default_channels() }
     }
 }
 

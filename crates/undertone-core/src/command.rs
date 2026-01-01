@@ -9,46 +9,23 @@ use crate::mixer::MixType;
 #[derive(Debug, Clone)]
 pub enum Command {
     /// Set volume for a channel in a specific mix
-    SetChannelVolume {
-        channel: String,
-        mix: MixType,
-        volume: f32,
-    },
+    SetChannelVolume { channel: String, mix: MixType, volume: f32 },
     /// Set mute state for a channel in a specific mix
-    SetChannelMute {
-        channel: String,
-        mix: MixType,
-        muted: bool,
-    },
+    SetChannelMute { channel: String, mix: MixType, muted: bool },
     /// Route an app to a channel
-    SetAppRoute {
-        app_pattern: String,
-        channel: String,
-    },
+    SetAppRoute { app_pattern: String, channel: String },
     /// Remove an app route
-    RemoveAppRoute {
-        app_pattern: String,
-    },
+    RemoveAppRoute { app_pattern: String },
     /// Save current state as a profile
-    SaveProfile {
-        name: String,
-    },
+    SaveProfile { name: String },
     /// Load a saved profile
-    LoadProfile {
-        name: String,
-    },
+    LoadProfile { name: String },
     /// Delete a profile
-    DeleteProfile {
-        name: String,
-    },
+    DeleteProfile { name: String },
     /// Set microphone gain
-    SetMicGain {
-        gain: f32,
-    },
+    SetMicGain { gain: f32 },
     /// Set microphone mute state
-    SetMicMute {
-        muted: bool,
-    },
+    SetMicMute { muted: bool },
     /// Trigger reconciliation
     Reconcile,
     /// Request shutdown
