@@ -1,19 +1,23 @@
 //! Build script for undertone-ui.
 //!
-//! This will configure cxx-qt when Qt development packages are installed.
+//! Configures cxx-qt for Qt6/QML integration.
+
+use cxx_qt_build::{CxxQtBuilder, QmlModule};
 
 fn main() {
-    // TODO: Enable cxx-qt build when Qt packages are installed
-    //
-    // cxx_qt_build::CxxQtBuilder::new()
-    //     .file("src/bridge.rs")
-    //     .qml_module(cxx_qt_build::QmlModule {
-    //         uri: "com.undertone",
-    //         rust_files: &["src/bridge.rs"],
-    //         qml_files: &["../../ui/main.qml"],
-    //         ..Default::default()
-    //     })
-    //     .build();
-
-    println!("cargo:warning=cxx-qt build disabled - install Qt development packages first");
+    CxxQtBuilder::new()
+        .qt_module("Qml")
+        .qt_module("Quick")
+        .qt_module("QuickControls2")
+        .qml_module(QmlModule {
+            uri: "com.undertone",
+            rust_files: &["src/bridge.rs"],
+            qml_files: &[
+                "../../ui/main.qml",
+                "../../ui/MixerPage.qml",
+                "../../ui/ChannelStrip.qml",
+            ],
+            ..Default::default()
+        })
+        .build();
 }

@@ -204,22 +204,32 @@ Undertone/
 
 ---
 
-### ⏳ Milestone 5: UI Framework (NOT STARTED)
+### ✅ Milestone 5: UI Framework (COMPLETE)
 
 **Deliverables:**
 
-- [ ] Main window with tabs
-- [ ] Mixer page with channel strips
-- [ ] VU meters with real-time levels
-- [ ] Volume faders and mute buttons
+- [x] Main window with tabs (Mixer, Apps, Device)
+- [x] Mixer page with channel strips
+- [ ] VU meters with real-time levels (deferred - needs PipeWire level monitoring)
+- [x] Volume faders and mute buttons
+- [x] cxx-qt bridge to expose Rust controller to QML
 
-**Framework:** cxx-qt (Qt6/QML with Rust backend)
+**Framework:** cxx-qt 0.7 (Qt6/QML with Rust backend)
 
-**Current State:**
+**Success Criteria:**
 
-- Skeleton crate exists in `undertone-ui/`
-- Build disabled until Qt development packages installed
-- State management pattern established
+- [x] UI builds and launches successfully
+- [x] QML loads from compiled QRC resources
+- [x] UndertoneController exposed to QML with properties
+- [x] Dark theme with Wave:3 inspired color scheme
+
+**Technical Implementation:**
+
+- Uses `QGuiApplication` and `QQmlApplicationEngine` from cxx-qt-lib
+- Bridge in `src/bridge.rs` exposes `UndertoneController` QObject to QML
+- Index-based channel access (channelName, channelVolume, channelMuted, etc.)
+- QML files: main.qml (app window), MixerPage.qml, ChannelStrip.qml
+- Qt modules: Core, Qml, Quick, QuickControls2
 
 ---
 

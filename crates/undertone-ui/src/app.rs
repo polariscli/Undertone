@@ -1,6 +1,8 @@
 //! Application entry point.
 
 use std::sync::Arc;
+
+use cxx_qt_lib::{QGuiApplication, QQmlApplicationEngine, QString, QUrl};
 use tracing::info;
 
 use crate::state::UiState;
@@ -28,13 +30,33 @@ impl Application {
     pub fn run(&self) -> Result<(), Box<dyn std::error::Error>> {
         info!("Starting Undertone UI");
 
-        // TODO: Initialize Qt application via cxx-qt
-        // This requires the Qt development packages to be installed
-        // and proper cxx-qt setup with build.rs
+        // Initialize Qt application
+        let mut app = QGuiApplication::new();
 
-        // For now, just print a message
-        println!("Undertone UI");
-        println!("Qt integration pending - install qt6-qtbase-devel and qt6-qtdeclarative-devel");
+        // Create QML engine
+        let mut engine = QQmlApplicationEngine::new();
+
+        // Load main QML file from the compiled QRC
+        let qml_path = QUrl::from(&QString::from("qrc:/qt/qml/com/undertone/main.qml"));
+
+        if let Some(engine_pin) = engine.as_mut() {
+            engine_pin.load(&qml_path);
+        }
+
+        info!("QML loaded, starting event loop");
+
+        // Run the Qt event loop
+        let exit_code = if let Some(app_pin) = app.as_mut() {
+            app_pin.exec()
+        } else {
+            return Err("Failed to initialize Qt application".into());
+        };
+
+        info!(exit_code, "Qt event loop exited");
+
+        if exit_code != 0 {
+            return Err(format!("Qt exited with code {exit_code}").into());
+        }
 
         Ok(())
     }
