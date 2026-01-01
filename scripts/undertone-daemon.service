@@ -1,0 +1,31 @@
+[Unit]
+Description=Undertone Audio Control Daemon
+Documentation=https://github.com/undertone-audio/undertone
+After=pipewire.service
+Wants=pipewire.service
+
+[Service]
+Type=simple
+ExecStart=%h/.cargo/bin/undertone-daemon
+Restart=on-failure
+RestartSec=5
+
+# Environment
+Environment=RUST_LOG=undertone=info
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+
+# Allow access to PipeWire socket
+ReadWritePaths=%t/pipewire-0
+# Allow access to our own socket
+ReadWritePaths=%t/undertone
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,9 @@
+# Elgato Wave:3 USB Microphone
+# Allow non-root access to the device for Undertone
+#
+# Install: sudo cp 99-elgato-wave3.rules /etc/udev/rules.d/
+# Reload: sudo udevadm control --reload-rules && sudo udevadm trigger
+
+# Wave:3 - VID: 0x0fd9, PID: 0x0070
+SUBSYSTEM=="usb", ATTR{idVendor}=="0fd9", ATTR{idProduct}=="0070", MODE="0666", TAG+="uaccess"
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="0fd9", ATTRS{idProduct}=="0070", MODE="0666", TAG+="uaccess"
