@@ -180,21 +180,17 @@ fn command_to_method(cmd: UiCommand) -> Option<Method> {
             // Mix mode is UI-only, not sent to daemon
             None
         }
-        UiCommand::SetVolume { channel, volume } => Some(Method::SetChannelVolume {
-            channel,
-            mix: MixType::Stream, // TODO: Use current mix mode
-            volume,
-        }),
-        UiCommand::ToggleMute { channel } => Some(Method::SetChannelMute {
-            channel,
-            mix: MixType::Stream,
-            muted: true, // TODO: Toggle based on current state
-        }),
+        UiCommand::SetVolume { channel, mix, volume } => {
+            Some(Method::SetChannelVolume { channel, mix, volume })
+        }
+        UiCommand::SetMute { channel, mix, muted } => {
+            Some(Method::SetChannelMute { channel, mix, muted })
+        }
         UiCommand::SetAppChannel { app_pattern, channel } => {
             Some(Method::SetAppRoute { app_pattern, channel })
         }
         UiCommand::SetMicGain { gain } => Some(Method::SetMicGain { gain }),
-        UiCommand::ToggleMicMute => Some(Method::SetMicMute { muted: true }), // TODO: Toggle
+        UiCommand::SetMicMute { muted } => Some(Method::SetMicMute { muted }),
         UiCommand::SaveProfile { name } => Some(Method::SaveProfile { name }),
         UiCommand::LoadProfile { name } => Some(Method::LoadProfile { name }),
         UiCommand::DeleteProfile { name } => Some(Method::DeleteProfile { name }),

@@ -245,11 +245,11 @@ impl Default for UndertoneControllerRust {
 /// Commands sent to the async handler.
 pub enum UiCommand {
     SetMixMode(MixType),
-    SetVolume { channel: String, volume: f32 },
-    ToggleMute { channel: String },
+    SetVolume { channel: String, mix: MixType, volume: f32 },
+    SetMute { channel: String, mix: MixType, muted: bool },
     SetAppChannel { app_pattern: String, channel: String },
     SetMicGain { gain: f32 },
-    ToggleMicMute,
+    SetMicMute { muted: bool },
     SaveProfile { name: String },
     LoadProfile { name: String },
     DeleteProfile { name: String },
@@ -269,17 +269,33 @@ impl ffi::UndertoneController {
     /// Set volume for a channel.
     fn set_channel_volume(self: Pin<&mut Self>, channel: QString, volume: f32) {
         let channel_name = channel.to_string();
-        debug!(channel = %channel_name, volume, "Setting channel volume");
+        let mix = if self.mix_mode == 0 { MixType::Stream } else { MixType::Monitor };
+        debug!(channel = %channel_name, ?mix, volume, "Setting channel volume");
 
-        send_command(UiCommand::SetVolume { channel: channel_name, volume });
+        send_command(UiCommand::SetVolume { channel: channel_name, mix, volume });
     }
 
     /// Toggle mute for a channel.
     fn toggle_channel_mute(self: Pin<&mut Self>, channel: QString) {
         let channel_name = channel.to_string();
-        debug!(channel = %channel_name, "Toggling channel mute");
+        let mix = if self.mix_mode == 0 { MixType::Stream } else { MixType::Monitor };
 
-        send_command(UiCommand::ToggleMute { channel: channel_name });
+        // Get current muted state to toggle
+        let current_muted = if let Ok(cache) = get_ui_data().lock() {
+            cache
+                .channels
+                .iter()
+                .find(|c| c.name == channel_name)
+                .map(|c| if self.mix_mode == 0 { c.stream_muted } else { c.monitor_muted })
+                .unwrap_or(false)
+        } else {
+            false
+        };
+
+        let new_muted = !current_muted;
+        debug!(channel = %channel_name, ?mix, muted = new_muted, "Setting channel mute");
+
+        send_command(UiCommand::SetMute { channel: channel_name, mix, muted: new_muted });
     }
 
     /// Get channel name by index.
@@ -407,7 +423,7 @@ impl ffi::UndertoneController {
         let new_muted = !self.mic_muted;
         debug!(muted = new_muted, "Toggling mic mute");
         self.as_mut().set_mic_muted(new_muted);
-        send_command(UiCommand::ToggleMicMute);
+        send_command(UiCommand::SetMicMute { muted: new_muted });
     }
 
     /// Get profile name by index.
