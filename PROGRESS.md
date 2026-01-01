@@ -6,9 +6,25 @@
 
 ---
 
-## Current Status: IPC Integration Complete
+## Current Status: UI-Daemon Integration Complete (with limitations)
 
-The UI is now connected to the daemon via IPC. The UI starts a background tokio runtime that connects to the daemon socket, subscribes to events, and handles bidirectional communication. State updates flow from daemon to UI in real-time.
+The UI connects to the daemon and displays real-time state. However, several features are UI-only and don't actually affect audio.
+
+### What Works
+- ✅ UI launches and connects to daemon
+- ✅ Channel strips display with names from daemon
+- ✅ Volume sliders and mute buttons are interactive
+- ✅ App routing page shows active audio apps
+- ✅ Device page shows connection status
+- ✅ Profile selector in header
+
+### What Doesn't Work Yet
+- ❌ **Volume sliders don't change actual audio** - Changes update UI state only, not PipeWire
+- ❌ **VU meters are static** - No real-time level monitoring
+- ❌ **Mic gain/mute is UI-only** - No ALSA/HID backend connected
+- ❌ **Profile save/load is incomplete** - Daemon handlers are stubs
+- ❌ **App routing doesn't move audio** - PipeWire link management not wired up
+- ❌ **Device serial always empty** - Daemon doesn't detect Wave:3 serial
 
 ### Verified Working Features
 
@@ -83,16 +99,46 @@ $ echo '{"id":1,"method":{"type":"GetState"}}' | socat - UNIX-CONNECT:$XDG_RUNTI
 ```
 Undertone/
 ├── Cargo.toml                    # Workspace root
+├── CLAUDE.md                     # AI assistant context
 ├── PROGRESS.md                   # This file
 ├── crates/
 │   ├── undertone-daemon/         # Main daemon binary ✅
+│   │   └── src/
+│   │       ├── main.rs           # Entry point, main loop
+│   │       └── server.rs         # IPC request handlers
 │   ├── undertone-core/           # Business logic ✅
+│   │   └── src/
+│   │       ├── channel.rs        # Channel definitions
+│   │       ├── command.rs        # State mutation commands
+│   │       ├── mixer.rs          # Mix routing logic
+│   │       ├── profile.rs        # Profile types
+│   │       ├── routing.rs        # App routing rules
+│   │       └── state.rs          # State machine
 │   ├── undertone-pipewire/       # PipeWire graph management ✅
+│   │   └── src/
+│   │       ├── graph.rs          # Graph state cache
+│   │       ├── monitor.rs        # Event monitoring
+│   │       └── runtime.rs        # Node/link creation
 │   ├── undertone-db/             # SQLite persistence ✅
 │   ├── undertone-ipc/            # IPC protocol definitions ✅
+│   │   └── src/
+│   │       ├── client.rs         # Client for UI
+│   │       ├── events.rs         # Event types
+│   │       ├── messages.rs       # Request/response types
+│   │       └── server.rs         # Server for daemon
 │   ├── undertone-hid/            # Wave:3 HID integration (stub)
-│   └── undertone-ui/             # UI application (stub)
-├── ui/                           # QML UI definitions (not yet created)
+│   └── undertone-ui/             # Qt6/QML UI application ✅
+│       ├── qml/
+│       │   ├── main.qml          # Main window, tabs
+│       │   ├── MixerPage.qml     # Channel strips
+│       │   ├── ChannelStrip.qml  # Individual fader
+│       │   ├── AppsPage.qml      # App routing
+│       │   └── DevicePage.qml    # Device controls
+│       └── src/
+│           ├── app.rs            # Application entry
+│           ├── bridge.rs         # cxx-qt QObject bridge
+│           ├── ipc_handler.rs    # Async IPC thread
+│           └── state.rs          # UI state
 ├── config/                       # Config templates (not yet created)
 └── scripts/                      # Install scripts (not yet created)
 ```
@@ -417,33 +463,112 @@ pw-cli list-objects Node | grep ut-
 
 ---
 
-## Next Steps
+## Remaining Work
 
-1. **Milestone 10: Polish & Release**
-   - Diagnostics page
-   - Error recovery
-   - Installation scripts
-   - Documentation
+### High Priority (Core Functionality)
 
-2. **Milestone 3b: Volume Control** (optional enhancement)
-   - Add filter nodes for per-channel, per-mix volume control
-   - Route mic input to mixes with volume control
-   - Apply volume changes to PipeWire nodes
+1. **Milestone 3b: Volume Control** - Make sliders actually work
+   - [ ] Create PipeWire filter/volume nodes between channels and mixes
+   - [ ] Apply `SetChannelVolume` commands to PipeWire nodes
+   - [ ] Apply `SetChannelMute` by setting volume to 0 or unlinking
+   - [ ] Route mic input (wave3-source) to mixes with volume control
+
+2. **App Routing Implementation** - Make channel assignment work
+   - [ ] When app route changes, update PipeWire links
+   - [ ] Move app's audio stream to target channel sink
+   - [ ] Handle new apps appearing (apply routing rules)
+   - [ ] Persist routes to database on change
+
+3. **Mic Control Backend** - Connect UI to actual hardware
+   - [ ] Implement ALSA fallback for mic gain (`amixer` or alsa-rs)
+   - [ ] Or implement Wave:3 HID protocol for native control
+   - [ ] Sync mute state with hardware mute button
+
+4. **Profile Persistence** - Make save/load actually work
+   - [ ] Implement `Command::SaveProfile` in daemon
+   - [ ] Store channel volumes, mutes, app routes in database
+   - [ ] Implement `Command::LoadProfile` to restore state
+   - [ ] Load default profile on daemon startup
+
+### Medium Priority (Usability)
+
+5. **VU Meters** - Real-time audio levels
+   - [ ] Subscribe to PipeWire peak levels for each channel
+   - [ ] Stream level data to UI via IPC events
+   - [ ] Update `level_left`/`level_right` in channel state
+
+6. **Device Detection** - Wave:3 serial and status
+   - [ ] Query USB device for serial number
+   - [ ] Detect device connect/disconnect events
+   - [ ] Update `device_connected` and `device_serial` in state
+
+7. **Error Handling** - Robustness
+   - [ ] UI reconnection with exponential backoff
+   - [ ] Graceful handling of daemon crashes
+   - [ ] Visual error states in UI
+   - [ ] Logging/diagnostics page
+
+### Low Priority (Polish)
+
+8. **Milestone 10: Release Readiness**
+   - [ ] Diagnostics page showing PipeWire graph state
+   - [ ] Installation scripts (systemd service, udev rules)
+   - [ ] User documentation
+   - [ ] Config file support (`~/.config/undertone/config.toml`)
+
+9. **Wave:3 HID Integration** (Milestone 9)
+   - [ ] Reverse-engineer USB HID protocol from Windows
+   - [ ] Implement bidirectional mute sync
+   - [ ] LED control (if protocol supports it)
+   - [ ] Hardware gain control
+
+10. **UI Enhancements**
+    - [ ] Keyboard shortcuts (mute all, etc.)
+    - [ ] System tray icon
+    - [ ] Minimize to tray
+    - [ ] Auto-start on login
 
 ---
 
 ## Known Issues
 
-1. **HID integration deferred**: Using ALSA fallback for mic gain control
-2. **VU meters not yet live**: Need PipeWire level monitoring integration
-3. **Volume changes not applied to PipeWire**: Requires filter nodes (Milestone 3b)
+### Bugs
+
+1. **cxx-qt method naming**: Methods keep snake_case in QML (e.g., `poll_updates` not `pollUpdates`)
+2. **Empty device serial**: Daemon doesn't query USB for Wave:3 serial number
+3. **Mic gain NaN**: Fixed in UI but underlying value may still be uninitialized
+4. **Profile dropdown shows only current**: Daemon doesn't send full profile list
+
+### Architectural Limitations
+
+5. **No filter nodes**: Volume control requires inserting filter nodes in PipeWire graph - not yet implemented
+6. **Audio doesn't move**: App routing updates state but doesn't manipulate PipeWire links
+7. **Mic control is fake**: UI shows gain/mute controls but they don't affect hardware
+8. **Profiles are stubs**: Save/load commands are received but not persisted
+
+### Missing Features
+
+9. **No VU meters**: Channels show static 0% levels
+10. **No reconnection**: If daemon restarts, UI must be restarted
+11. **No error feedback**: IPC errors logged but not shown to user
+12. **No keyboard shortcuts**: All interaction is mouse-only
+13. **No tray icon**: App must stay open in window
 
 ---
 
 ## Git History
 
 ```
+32a93fc fix(ui): Fix state parsing and QML property bindings
+049c4af fix(ui): Use snake_case for QML method calls
+6a8266d docs: Update PROGRESS.md with IPC integration status
 3d45413 feat(ui): Implement IPC integration between UI and daemon
+513d247 fix: Rename volumeChanged signal to avoid Qt property conflict
+f058066 fix: Move QML files to crate directory for correct resource paths
+f5eec6d feat: Implement Profile management UI (Milestone 8)
+fb7ce70 feat: Implement Device Panel UI (Milestone 7)
+f49192e feat: Implement App Routing UI (Milestone 6)
+b41dee8 feat: Implement Qt6/QML UI framework with cxx-qt
 1ac61ae docs: Add PROGRESS.md with development status
 f8d6ec8 feat: Implement Undertone daemon with PipeWire integration
 ```
