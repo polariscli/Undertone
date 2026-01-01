@@ -48,9 +48,12 @@ impl NodeInfo {
     }
 
     /// Check if this is an Undertone channel node.
+    /// Excludes volume filter nodes which also start with "ut-ch-".
     #[must_use]
     pub fn is_undertone_channel(&self) -> bool {
         self.name.starts_with("ut-ch-")
+            && !self.name.ends_with("-stream-vol")
+            && !self.name.ends_with("-monitor-vol")
     }
 
     /// Check if this is an Undertone mix node.

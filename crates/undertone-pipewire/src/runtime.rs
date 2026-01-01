@@ -215,16 +215,18 @@ impl PipeWireRuntime {
     pub fn create_channel_to_mix_links_with_filters(&self) -> PwResult<Vec<(String, u32)>> {
         let mut created_links = Vec::new();
 
-        // Get mix node IDs
+        // Get mix node IDs from registry (NOT created_nodes, which has wrong IDs)
         let stream_mix_id = self
             .graph
-            .get_created_node_id("ut-stream-mix")
-            .ok_or_else(|| PwError::NodeNotFound("ut-stream-mix".to_string()))?;
+            .get_node_by_name("ut-stream-mix")
+            .ok_or_else(|| PwError::NodeNotFound("ut-stream-mix".to_string()))?
+            .id;
 
         let monitor_mix_id = self
             .graph
-            .get_created_node_id("ut-monitor-mix")
-            .ok_or_else(|| PwError::NodeNotFound("ut-monitor-mix".to_string()))?;
+            .get_node_by_name("ut-monitor-mix")
+            .ok_or_else(|| PwError::NodeNotFound("ut-monitor-mix".to_string()))?
+            .id;
 
         // Get all channel nodes (ut-ch-{name})
         let channel_nodes = self.graph.get_undertone_channels();
@@ -236,19 +238,21 @@ impl PipeWireRuntime {
             // Extract the base channel name (e.g., "music" from "ut-ch-music")
             let base_name = channel_name.strip_prefix("ut-ch-").unwrap_or(channel_name);
 
-            // Get the stream volume filter node ID
+            // Get the stream volume filter node ID from registry
             let stream_vol_name = format!("ut-ch-{base_name}-stream-vol");
             let stream_vol_id = self
                 .graph
-                .get_created_node_id(&stream_vol_name)
-                .ok_or_else(|| PwError::NodeNotFound(stream_vol_name.clone()))?;
+                .get_node_by_name(&stream_vol_name)
+                .ok_or_else(|| PwError::NodeNotFound(stream_vol_name.clone()))?
+                .id;
 
-            // Get the monitor volume filter node ID
+            // Get the monitor volume filter node ID from registry
             let monitor_vol_name = format!("ut-ch-{base_name}-monitor-vol");
             let monitor_vol_id = self
                 .graph
-                .get_created_node_id(&monitor_vol_name)
-                .ok_or_else(|| PwError::NodeNotFound(monitor_vol_name.clone()))?;
+                .get_node_by_name(&monitor_vol_name)
+                .ok_or_else(|| PwError::NodeNotFound(monitor_vol_name.clone()))?
+                .id;
 
             // Link channel -> stream-vol-filter (stereo)
             match self.create_stereo_links(channel_id, stream_vol_id) {
@@ -346,16 +350,18 @@ impl PipeWireRuntime {
     pub fn create_channel_to_mix_links(&self) -> PwResult<Vec<(String, u32)>> {
         let mut created_links = Vec::new();
 
-        // Get mix node IDs
+        // Get mix node IDs from registry
         let stream_mix_id = self
             .graph
-            .get_created_node_id("ut-stream-mix")
-            .ok_or_else(|| PwError::NodeNotFound("ut-stream-mix".to_string()))?;
+            .get_node_by_name("ut-stream-mix")
+            .ok_or_else(|| PwError::NodeNotFound("ut-stream-mix".to_string()))?
+            .id;
 
         let monitor_mix_id = self
             .graph
-            .get_created_node_id("ut-monitor-mix")
-            .ok_or_else(|| PwError::NodeNotFound("ut-monitor-mix".to_string()))?;
+            .get_node_by_name("ut-monitor-mix")
+            .ok_or_else(|| PwError::NodeNotFound("ut-monitor-mix".to_string()))?
+            .id;
 
         // Get all channel nodes
         let channel_nodes = self.graph.get_undertone_channels();
@@ -412,9 +418,10 @@ impl PipeWireRuntime {
     ///
     /// This enables local monitoring through the headphones.
     pub fn link_monitor_to_headphones(&self) -> PwResult<(u32, u32)> {
-        let monitor_mix_id = self
+        // Get monitor-mix from registry (not created_nodes)
+        let monitor_mix = self
             .graph
-            .get_created_node_id("ut-monitor-mix")
+            .get_node_by_name("ut-monitor-mix")
             .ok_or_else(|| PwError::NodeNotFound("ut-monitor-mix".to_string()))?;
 
         // Find the Wave:3 sink node
@@ -424,12 +431,12 @@ impl PipeWireRuntime {
             .ok_or_else(|| PwError::NodeNotFound("wave3-sink".to_string()))?;
 
         info!(
-            monitor_mix_id,
+            monitor_mix_id = monitor_mix.id,
             wave3_sink_id = wave3_sink.id,
             "Linking monitor-mix to Wave:3 headphones"
         );
 
-        self.create_stereo_links(monitor_mix_id, wave3_sink.id)
+        self.create_stereo_links(monitor_mix.id, wave3_sink.id)
     }
 
     /// Create a volume filter node.
@@ -559,11 +566,12 @@ impl PipeWireRuntime {
     pub fn route_app_to_channel(&self, app_node_id: u32, channel_name: &str) -> PwResult<Vec<u32>> {
         let channel_sink_name = format!("ut-ch-{channel_name}");
 
-        // Get the channel sink node ID
+        // Get the channel sink node ID from registry
         let channel_id = self
             .graph
-            .get_created_node_id(&channel_sink_name)
-            .ok_or_else(|| PwError::NodeNotFound(channel_sink_name.clone()))?;
+            .get_node_by_name(&channel_sink_name)
+            .ok_or_else(|| PwError::NodeNotFound(channel_sink_name.clone()))?
+            .id;
 
         // Get app node info to verify it exists
         let app_node = self

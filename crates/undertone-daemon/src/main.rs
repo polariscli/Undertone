@@ -150,9 +150,11 @@ async fn main() -> Result<()> {
         }
     }
 
-    // Wait for ports to be discovered before creating links
-    info!("Waiting for port discovery...");
-    sleep(Duration::from_millis(500)).await;
+    // Wait for nodes and ports to be fully registered in PipeWire before creating links.
+    // The registry receives global events asynchronously, so we need to wait for our
+    // newly created nodes to appear before we can look them up for linking.
+    info!("Waiting for node and port discovery...");
+    sleep(Duration::from_millis(1500)).await;
 
     // Create links from channels through volume filters to mix nodes
     info!("Creating channel-to-mix links with volume filters...");
