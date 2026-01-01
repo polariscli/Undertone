@@ -5,7 +5,10 @@
 
 pub mod app;
 pub mod bridge;
+pub mod ipc_handler;
 pub mod state;
 
 pub use app::Application;
+pub use bridge::init_ipc;
+pub use ipc_handler::{IpcHandle, IpcUpdate};
 pub use state::UiState;

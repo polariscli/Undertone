@@ -5,6 +5,7 @@ use std::sync::Arc;
 use cxx_qt_lib::{QGuiApplication, QQmlApplicationEngine, QString, QUrl};
 use tracing::info;
 
+use crate::bridge::init_ipc;
 use crate::state::UiState;
 
 /// Main application struct.
@@ -29,6 +30,11 @@ impl Application {
     /// Returns an error if the application fails to start.
     pub fn run(&self) -> Result<(), Box<dyn std::error::Error>> {
         info!("Starting Undertone UI");
+
+        // Initialize IPC handler before Qt starts
+        // This creates the background tokio runtime and connects to the daemon
+        let _command_tx = init_ipc(Arc::clone(&self.state));
+        info!("IPC handler started");
 
         // Initialize Qt application
         let mut app = QGuiApplication::new();

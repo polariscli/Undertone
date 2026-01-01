@@ -19,6 +19,20 @@ ApplicationWindow {
         id: controller
     }
 
+    // Poll for IPC updates from daemon
+    Timer {
+        id: updateTimer
+        interval: 50  // 20 Hz update rate
+        running: true
+        repeat: true
+        onTriggered: controller.pollUpdates()
+    }
+
+    // Initialize controller on startup
+    Component.onCompleted: {
+        controller.initialize()
+    }
+
     // Header bar
     header: ToolBar {
         height: 48
