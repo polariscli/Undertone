@@ -93,6 +93,11 @@ impl IpcServer {
         let _ = self.event_tx.send(event);
     }
 
+    /// Get a clone of the event sender for broadcasting from other tasks.
+    pub fn event_sender(&self) -> broadcast::Sender<Event> {
+        self.event_tx.clone()
+    }
+
     async fn handle_client(
         client_id: u64,
         stream: UnixStream,

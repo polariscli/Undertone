@@ -140,6 +140,174 @@ impl PipeWireRuntime {
         &self.graph
     }
 
+    /// Create a link between two nodes.
+    ///
+    /// Links connect output ports from the source node to input ports on the
+    /// destination node. For audio routing, this typically connects monitor
+    /// ports of a sink to input ports of another sink.
+    ///
+    /// # Arguments
+    /// * `output_node` - The source node ID
+    /// * `output_port` - The output port name (e.g., "monitor_FL")
+    /// * `input_node` - The destination node ID
+    /// * `input_port` - The input port name (e.g., "input_FL")
+    pub fn create_link(
+        &self,
+        output_node: u32,
+        output_port: &str,
+        input_node: u32,
+        input_port: &str,
+    ) -> PwResult<u32> {
+        self.factory_tx
+            .send(FactoryRequest::CreateLink {
+                output_node,
+                output_port: output_port.to_string(),
+                input_node,
+                input_port: input_port.to_string(),
+            })
+            .map_err(|_| PwError::MainLoopError("Factory channel closed".to_string()))?;
+
+        match self.factory_rx.recv_timeout(Duration::from_secs(5)) {
+            Ok(FactoryResponse::LinkCreated { id }) => Ok(id),
+            Ok(FactoryResponse::Error(e)) => Err(PwError::LinkCreationFailed(e)),
+            Ok(_) => Err(PwError::LinkCreationFailed("Unexpected response".to_string())),
+            Err(_) => Err(PwError::LinkCreationFailed(
+                "Timeout waiting for response".to_string(),
+            )),
+        }
+    }
+
+    /// Create stereo links between two nodes.
+    ///
+    /// This creates two links: one for the left channel (FL) and one for
+    /// the right channel (FR). This is the common case for stereo audio routing.
+    ///
+    /// For sink-to-sink routing, this links monitor ports (output) to
+    /// playback ports (input). PipeWire uses:
+    /// - "monitor_FL"/"monitor_FR" for monitor output ports
+    /// - "playback_FL"/"playback_FR" for playback input ports
+    pub fn create_stereo_links(
+        &self,
+        output_node: u32,
+        input_node: u32,
+    ) -> PwResult<(u32, u32)> {
+        let left_id = self.create_link(output_node, "monitor_FL", input_node, "playback_FL")?;
+        let right_id = self.create_link(output_node, "monitor_FR", input_node, "playback_FR")?;
+        Ok((left_id, right_id))
+    }
+
+    /// Destroy a link by ID.
+    pub fn destroy_link(&self, id: u32) -> PwResult<()> {
+        self.factory_tx
+            .send(FactoryRequest::DestroyLink(id))
+            .map_err(|_| PwError::MainLoopError("Factory channel closed".to_string()))?;
+
+        match self.factory_rx.recv_timeout(Duration::from_secs(5)) {
+            Ok(FactoryResponse::LinkDestroyed { id: _ }) => Ok(()),
+            Ok(FactoryResponse::Error(e)) => Err(PwError::LinkCreationFailed(e)),
+            Ok(_) => Err(PwError::LinkCreationFailed("Unexpected response".to_string())),
+            Err(_) => Err(PwError::LinkCreationFailed(
+                "Timeout waiting for response".to_string(),
+            )),
+        }
+    }
+
+    /// Create links from all channel sinks to the mix nodes.
+    ///
+    /// This links the monitor ports of each channel sink to the input ports
+    /// of both the stream-mix and monitor-mix nodes, enabling audio to flow
+    /// from channels to both output paths.
+    ///
+    /// Returns a vector of (link_description, link_id) tuples for tracking.
+    pub fn create_channel_to_mix_links(&self) -> PwResult<Vec<(String, u32)>> {
+        let mut created_links = Vec::new();
+
+        // Get mix node IDs
+        let stream_mix_id = self
+            .graph
+            .get_created_node_id("ut-stream-mix")
+            .ok_or_else(|| PwError::NodeNotFound("ut-stream-mix".to_string()))?;
+
+        let monitor_mix_id = self
+            .graph
+            .get_created_node_id("ut-monitor-mix")
+            .ok_or_else(|| PwError::NodeNotFound("ut-monitor-mix".to_string()))?;
+
+        // Get all channel nodes
+        let channel_nodes = self.graph.get_undertone_channels();
+
+        for channel in &channel_nodes {
+            let channel_id = channel.id;
+            let channel_name = &channel.name;
+
+            // Link channel -> stream-mix (stereo)
+            match self.create_stereo_links(channel_id, stream_mix_id) {
+                Ok((left_id, right_id)) => {
+                    info!(
+                        channel = %channel_name,
+                        stream_mix_id,
+                        "Linked channel to stream-mix"
+                    );
+                    created_links.push((format!("{channel_name}->stream-mix:FL"), left_id));
+                    created_links.push((format!("{channel_name}->stream-mix:FR"), right_id));
+                }
+                Err(e) => {
+                    error!(
+                        channel = %channel_name,
+                        error = %e,
+                        "Failed to link channel to stream-mix"
+                    );
+                }
+            }
+
+            // Link channel -> monitor-mix (stereo)
+            match self.create_stereo_links(channel_id, monitor_mix_id) {
+                Ok((left_id, right_id)) => {
+                    info!(
+                        channel = %channel_name,
+                        monitor_mix_id,
+                        "Linked channel to monitor-mix"
+                    );
+                    created_links.push((format!("{channel_name}->monitor-mix:FL"), left_id));
+                    created_links.push((format!("{channel_name}->monitor-mix:FR"), right_id));
+                }
+                Err(e) => {
+                    error!(
+                        channel = %channel_name,
+                        error = %e,
+                        "Failed to link channel to monitor-mix"
+                    );
+                }
+            }
+        }
+
+        Ok(created_links)
+    }
+
+    /// Link the monitor-mix output to the Wave:3 headphone sink.
+    ///
+    /// This enables local monitoring through the headphones.
+    pub fn link_monitor_to_headphones(&self) -> PwResult<(u32, u32)> {
+        let monitor_mix_id = self
+            .graph
+            .get_created_node_id("ut-monitor-mix")
+            .ok_or_else(|| PwError::NodeNotFound("ut-monitor-mix".to_string()))?;
+
+        // Find the Wave:3 sink node
+        let wave3_sink = self
+            .graph
+            .get_node_by_name("wave3-sink")
+            .ok_or_else(|| PwError::NodeNotFound("wave3-sink".to_string()))?;
+
+        info!(
+            monitor_mix_id,
+            wave3_sink_id = wave3_sink.id,
+            "Linking monitor-mix to Wave:3 headphones"
+        );
+
+        self.create_stereo_links(monitor_mix_id, wave3_sink.id)
+    }
+
     /// Request shutdown of the PipeWire thread.
     pub fn shutdown(&self) {
         let _ = self.factory_tx.send(FactoryRequest::Shutdown);

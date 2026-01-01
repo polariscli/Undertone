@@ -11,7 +11,10 @@ pub mod server;
 
 pub use client::IpcClient;
 pub use error::{IpcError, IpcResult};
-pub use events::Event;
+pub use events::{
+    AppDiscoveredData, ChannelMuteChangedData, ChannelVolumeChangedData, DeviceConnectedData,
+    ErrorData, Event, EventType, LevelsData,
+};
 pub use messages::{Method, Request, Response};
 pub use server::IpcServer;
 

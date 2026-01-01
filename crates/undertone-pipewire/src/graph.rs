@@ -5,9 +5,8 @@ use std::sync::Arc;
 use parking_lot::RwLock;
 use tracing::{debug, info, warn};
 
-use crate::error::{PwError, PwResult};
 use crate::link::LinkInfo;
-use crate::node::{NodeInfo, PortInfo};
+use crate::node::{NodeInfo, PortDirection, PortInfo};
 
 /// Manages the PipeWire audio graph.
 ///
@@ -91,6 +90,89 @@ impl GraphManager {
             .filter(|p| p.node_id == node_id)
             .cloned()
             .collect()
+    }
+
+    /// Get a port by node ID and port name.
+    #[must_use]
+    pub fn get_port_by_name(&self, node_id: u32, port_name: &str) -> Option<PortInfo> {
+        self.ports
+            .read()
+            .values()
+            .find(|p| p.node_id == node_id && p.name == port_name)
+            .cloned()
+    }
+
+    /// Get input ports for a node.
+    #[must_use]
+    pub fn get_input_ports(&self, node_id: u32) -> Vec<PortInfo> {
+        self.ports
+            .read()
+            .values()
+            .filter(|p| p.node_id == node_id && p.direction == PortDirection::Input)
+            .cloned()
+            .collect()
+    }
+
+    /// Get output ports for a node (monitor ports for sinks).
+    #[must_use]
+    pub fn get_output_ports(&self, node_id: u32) -> Vec<PortInfo> {
+        self.ports
+            .read()
+            .values()
+            .filter(|p| p.node_id == node_id && p.direction == PortDirection::Output)
+            .cloned()
+            .collect()
+    }
+
+    /// Get a port by node ID and channel position (e.g., "FL", "FR").
+    #[must_use]
+    pub fn get_port_by_channel(
+        &self,
+        node_id: u32,
+        direction: PortDirection,
+        channel: &str,
+    ) -> Option<PortInfo> {
+        self.ports
+            .read()
+            .values()
+            .find(|p| {
+                p.node_id == node_id
+                    && p.direction == direction
+                    && p.channel.as_deref() == Some(channel)
+            })
+            .cloned()
+    }
+
+    /// Get all links.
+    #[must_use]
+    pub fn get_all_links(&self) -> Vec<LinkInfo> {
+        self.links.read().values().cloned().collect()
+    }
+
+    /// Get a link by ID.
+    #[must_use]
+    pub fn get_link(&self, id: u32) -> Option<LinkInfo> {
+        self.links.read().get(&id).cloned()
+    }
+
+    /// Get links involving a specific node (as source or destination).
+    #[must_use]
+    pub fn get_links_for_node(&self, node_id: u32) -> Vec<LinkInfo> {
+        self.links
+            .read()
+            .values()
+            .filter(|l| l.output_node == node_id || l.input_node == node_id)
+            .cloned()
+            .collect()
+    }
+
+    /// Check if a link exists between two nodes.
+    #[must_use]
+    pub fn has_link(&self, output_node: u32, input_node: u32) -> bool {
+        self.links
+            .read()
+            .values()
+            .any(|l| l.output_node == output_node && l.input_node == input_node)
     }
 
     /// Add a link to the cache.

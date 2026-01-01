@@ -7,7 +7,6 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::{Context, Result};
-use tokio::sync::mpsc;
 use tokio::time::sleep;
 use tracing::{debug, error, info, warn};
 use tracing_subscriber::EnvFilter;
@@ -19,7 +18,10 @@ mod signals;
 use undertone_core::channel::ChannelState;
 use undertone_core::state::{DaemonState, StateSnapshot};
 use undertone_db::Database;
-use undertone_ipc::{socket_path, IpcServer};
+use undertone_ipc::{
+    socket_path, AppDiscoveredData, ChannelMuteChangedData, ChannelVolumeChangedData,
+    DeviceConnectedData, Event, EventType, IpcServer,
+};
 use undertone_pipewire::{GraphEvent, GraphManager, PipeWireRuntime};
 
 /// Default channels to create
@@ -55,7 +57,7 @@ async fn main() -> Result<()> {
     info!(count = channels.len(), "Loaded channels from database");
 
     // Load routing rules
-    let routes = db.load_routes().context("Failed to load routes")?;
+    let mut routes = db.load_routes().context("Failed to load routes")?;
     info!(count = routes.len(), "Loaded routing rules");
 
     // Initialize PipeWire graph manager
@@ -113,12 +115,50 @@ async fn main() -> Result<()> {
         }
     }
 
+    // Wait for ports to be discovered before creating links
+    info!("Waiting for port discovery...");
+    sleep(Duration::from_millis(500)).await;
+
+    // Create links from channels to mix nodes
+    info!("Creating channel-to-mix links...");
+    match pw_runtime.create_channel_to_mix_links() {
+        Ok(created) => {
+            info!(count = created.len(), "Created channel-to-mix links");
+            for (description, id) in &created {
+                graph.record_created_link(description.clone(), *id);
+            }
+        }
+        Err(e) => {
+            error!(error = %e, "Failed to create channel-to-mix links");
+        }
+    }
+
+    // Link monitor-mix to headphones if Wave:3 is connected
+    if graph.get_node_by_name("wave3-sink").is_some() {
+        info!("Linking monitor-mix to Wave:3 headphones...");
+        match pw_runtime.link_monitor_to_headphones() {
+            Ok((left_id, right_id)) => {
+                info!("Monitor-mix linked to headphones");
+                graph.record_created_link("monitor-mix->wave3-sink:FL".to_string(), left_id);
+                graph.record_created_link("monitor-mix->wave3-sink:FR".to_string(), right_id);
+            }
+            Err(e) => {
+                warn!(error = %e, "Failed to link monitor-mix to headphones (Wave:3 may not be connected)");
+            }
+        }
+    } else {
+        info!("Wave:3 sink not found - skipping monitor-mix to headphones link");
+    }
+
     // Start IPC server
     let socket = socket_path();
     info!(?socket, "Starting IPC server");
     let (ipc_server, mut request_rx) = IpcServer::bind(&socket)
         .await
         .context("Failed to start IPC server")?;
+
+    // Get event sender for broadcasting events to IPC clients
+    let event_tx = ipc_server.event_sender();
 
     // Spawn IPC server task
     let ipc_handle = tokio::spawn(async move {
@@ -155,8 +195,31 @@ async fn main() -> Result<()> {
                     GraphEvent::Wave3Detected { serial } => {
                         info!(serial = %serial, "Wave:3 detected");
                         device_connected = true;
-                        device_serial = Some(serial);
+                        device_serial = Some(serial.clone());
                         state = DaemonState::Running;
+
+                        // Emit IPC event
+                        let _ = event_tx.send(Event {
+                            event: EventType::DeviceConnected,
+                            data: serde_json::to_value(DeviceConnectedData {
+                                serial: serial.clone(),
+                            })
+                            .unwrap_or_default(),
+                        });
+
+                        // Try to link monitor-mix to headphones now that Wave:3 is connected
+                        if !graph.get_created_links().contains_key("monitor-mix->wave3-sink:FL") {
+                            match pw_runtime.link_monitor_to_headphones() {
+                                Ok((left_id, right_id)) => {
+                                    info!("Monitor-mix linked to Wave:3 headphones");
+                                    graph.record_created_link("monitor-mix->wave3-sink:FL".to_string(), left_id);
+                                    graph.record_created_link("monitor-mix->wave3-sink:FR".to_string(), right_id);
+                                }
+                                Err(e) => {
+                                    warn!(error = %e, "Failed to link monitor-mix to headphones");
+                                }
+                            }
+                        }
                     }
 
                     GraphEvent::Wave3Removed => {
@@ -164,6 +227,12 @@ async fn main() -> Result<()> {
                         device_connected = false;
                         device_serial = None;
                         state = DaemonState::DeviceDisconnected;
+
+                        // Emit IPC event
+                        let _ = event_tx.send(Event {
+                            event: EventType::DeviceDisconnected,
+                            data: serde_json::json!({}),
+                        });
                     }
 
                     GraphEvent::NodeAdded(node) => {
@@ -200,11 +269,31 @@ async fn main() -> Result<()> {
 
                     GraphEvent::ClientAppeared { id, name, pid } => {
                         info!(id, name = %name, pid = ?pid, "Audio client appeared");
+
+                        // Emit IPC event
+                        let _ = event_tx.send(Event {
+                            event: EventType::AppDiscovered,
+                            data: serde_json::to_value(AppDiscoveredData {
+                                app_id: id,
+                                name: name.clone(),
+                                binary: None,
+                                pid,
+                                channel: "system".to_string(), // Default channel
+                            })
+                            .unwrap_or_default(),
+                        });
+
                         // TODO: Apply routing rules
                     }
 
                     GraphEvent::ClientDisappeared { id } => {
                         debug!(id, "Audio client disappeared");
+
+                        // Emit IPC event
+                        let _ = event_tx.send(Event {
+                            event: EventType::AppRemoved,
+                            data: serde_json::json!({ "app_id": id }),
+                        });
                     }
                 }
             }
@@ -219,19 +308,140 @@ async fn main() -> Result<()> {
                     device_connected,
                     device_serial: device_serial.clone(),
                     channels: channels.clone(),
-                    app_routes: vec![], // TODO: Track active routes
+                    app_routes: vec![], // TODO: Track active app routes
                     mixer: Default::default(),
                     active_profile: "Default".to_string(),
                     created_nodes: graph.get_created_nodes(),
-                    created_links: Default::default(),
+                    created_links: graph.get_created_links(),
                 };
 
-                let result = server::handle_request(&request.method, &snapshot);
+                let handle_result = server::handle_request(&request.method, &snapshot);
                 let response = undertone_ipc::Response {
                     id: request.id,
-                    result,
+                    result: handle_result.response,
                 };
                 let _ = response_tx.send(response).await;
+
+                // Process command if one was returned
+                if let Some(cmd) = handle_result.command {
+                    use undertone_core::Command;
+                    use undertone_core::mixer::MixType;
+
+                    match cmd {
+                        Command::SetChannelVolume { channel, mix, volume } => {
+                            if let Some(ch) = channels.iter_mut().find(|c| c.config.name == channel) {
+                                match mix {
+                                    MixType::Stream => ch.stream_volume = volume,
+                                    MixType::Monitor => ch.monitor_volume = volume,
+                                }
+                                info!(channel = %channel, ?mix, volume, "Channel volume updated");
+
+                                // Emit event
+                                let _ = event_tx.send(Event {
+                                    event: EventType::ChannelVolumeChanged,
+                                    data: serde_json::to_value(ChannelVolumeChangedData {
+                                        channel: channel.clone(),
+                                        mix,
+                                        volume,
+                                    }).unwrap_or_default(),
+                                });
+
+                                // TODO: Apply to PipeWire when filter nodes are implemented
+                            }
+                        }
+
+                        Command::SetChannelMute { channel, mix, muted } => {
+                            if let Some(ch) = channels.iter_mut().find(|c| c.config.name == channel) {
+                                match mix {
+                                    MixType::Stream => ch.stream_muted = muted,
+                                    MixType::Monitor => ch.monitor_muted = muted,
+                                }
+                                info!(channel = %channel, ?mix, muted, "Channel mute updated");
+
+                                // Emit event
+                                let _ = event_tx.send(Event {
+                                    event: EventType::ChannelMuteChanged,
+                                    data: serde_json::to_value(ChannelMuteChangedData {
+                                        channel: channel.clone(),
+                                        mix,
+                                        muted,
+                                    }).unwrap_or_default(),
+                                });
+
+                                // TODO: Apply to PipeWire when filter nodes are implemented
+                            }
+                        }
+
+                        Command::SetAppRoute { app_pattern, channel } => {
+                            use undertone_core::routing::{PatternType, RouteRule};
+
+                            // Update in-memory routes
+                            routes.retain(|r| r.pattern != app_pattern);
+                            let rule = RouteRule {
+                                pattern: app_pattern.clone(),
+                                pattern_type: PatternType::Exact,
+                                channel: channel.clone(),
+                                priority: 100,
+                            };
+                            routes.push(rule.clone());
+                            info!(app_pattern = %app_pattern, channel = %channel, "App route set");
+
+                            // Save to database
+                            if let Err(e) = db.save_route(&rule) {
+                                error!(error = %e, "Failed to save route to database");
+                            }
+
+                            // TODO: Apply routing to matching active apps
+                        }
+
+                        Command::RemoveAppRoute { app_pattern } => {
+                            routes.retain(|r| r.pattern != app_pattern);
+                            info!(app_pattern = %app_pattern, "App route removed");
+
+                            // Remove from database
+                            if let Err(e) = db.delete_route(&app_pattern) {
+                                error!(error = %e, "Failed to remove route from database");
+                            }
+                        }
+
+                        Command::SaveProfile { name } => {
+                            // TODO: Implement profile saving
+                            info!(name = %name, "Profile saving not yet implemented");
+                        }
+
+                        Command::LoadProfile { name } => {
+                            // TODO: Implement profile loading
+                            info!(name = %name, "Profile loading not yet implemented");
+                        }
+
+                        Command::DeleteProfile { name } => {
+                            // TODO: Implement profile deletion
+                            info!(name = %name, "Profile deletion not yet implemented");
+                        }
+
+                        Command::SetMicGain { gain } => {
+                            // TODO: Apply via ALSA fallback or HID
+                            info!(gain, "Mic gain setting not yet implemented");
+                        }
+
+                        Command::SetMicMute { muted } => {
+                            // TODO: Apply via ALSA fallback or HID
+                            info!(muted, "Mic mute setting not yet implemented");
+                        }
+
+                        Command::Reconcile => {
+                            state = DaemonState::Reconciling;
+                            // TODO: Implement full reconciliation
+                            info!("Reconciliation triggered");
+                            state = DaemonState::Running;
+                        }
+
+                        Command::Shutdown => {
+                            info!("Shutdown command processed");
+                            break;
+                        }
+                    }
+                }
             }
 
             // Handle shutdown signal
