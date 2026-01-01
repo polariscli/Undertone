@@ -37,7 +37,8 @@ impl Application {
         let mut engine = QQmlApplicationEngine::new();
 
         // Load main QML file from the compiled QRC
-        let qml_path = QUrl::from(&QString::from("qrc:/qt/qml/com/undertone/main.qml"));
+        // The path includes the relative directory from build.rs qml_files
+        let qml_path = QUrl::from(&QString::from("qrc:/qt/qml/com/undertone/qml/main.qml"));
 
         if let Some(engine_pin) = engine.as_mut() {
             engine_pin.load(&qml_path);

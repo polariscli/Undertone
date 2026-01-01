@@ -13,11 +13,11 @@ fn main() {
             uri: "com.undertone",
             rust_files: &["src/bridge.rs"],
             qml_files: &[
-                "../../ui/main.qml",
-                "../../ui/MixerPage.qml",
-                "../../ui/ChannelStrip.qml",
-                "../../ui/AppsPage.qml",
-                "../../ui/DevicePage.qml",
+                "qml/main.qml",
+                "qml/MixerPage.qml",
+                "qml/ChannelStrip.qml",
+                "qml/AppsPage.qml",
+                "qml/DevicePage.qml",
             ],
             ..Default::default()
         })
