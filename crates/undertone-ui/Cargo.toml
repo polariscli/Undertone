@@ -1,0 +1,30 @@
+[package]
+name = "undertone-ui"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Undertone UI - Qt6/QML user interface"
+
+[[bin]]
+name = "undertone"
+path = "src/main.rs"
+
+[dependencies]
+undertone-ipc = { path = "../undertone-ipc" }
+undertone-core = { path = "../undertone-core" }
+
+cxx-qt.workspace = true
+cxx-qt-lib.workspace = true
+cxx.workspace = true
+tokio = { workspace = true, features = ["rt", "sync"] }
+tracing.workspace = true
+tracing-subscriber.workspace = true
+arc-swap.workspace = true
+futures.workspace = true
+
+[build-dependencies]
+cxx-qt-build = "0.7"
+
+[lints]
+workspace = true

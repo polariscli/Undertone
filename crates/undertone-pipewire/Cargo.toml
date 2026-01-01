@@ -1,0 +1,25 @@
+[package]
+name = "undertone-pipewire"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Undertone PipeWire integration - graph management and node control"
+
+[dependencies]
+undertone-core = { path = "../undertone-core" }
+
+pipewire.workspace = true
+libspa.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+thiserror.workspace = true
+parking_lot.workspace = true
+futures.workspace = true
+serde.workspace = true
+
+[build-dependencies]
+pkg-config = "0.3"
+
+[lints]
+workspace = true

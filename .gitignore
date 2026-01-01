@@ -1,0 +1,48 @@
+# Rust
+/target/
+**/*.rs.bk
+Cargo.lock
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Build artifacts
+*.so
+*.dylib
+*.dll
+*.a
+*.o
+
+# Qt/QML
+*.qmlc
+*.jsc
+qmlcache/
+
+# Local configuration
+.env
+.env.local
+*.local.toml
+
+# Database files (keep schema, ignore data)
+*.db
+*.db-shm
+*.db-wal
+
+# Claude
+CLAUDE.md
+.claude/
+
+# Logs
+*.log
+logs/
+
+# macOS
+.DS_Store
+
+# Linux
+*.orig
+*.bak

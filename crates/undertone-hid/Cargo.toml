@@ -1,0 +1,22 @@
+[package]
+name = "undertone-hid"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Undertone HID - Wave:3 hardware integration (optional plugin)"
+
+[dependencies]
+undertone-core = { path = "../undertone-core" }
+
+tokio.workspace = true
+tracing.workspace = true
+thiserror.workspace = true
+
+# HID access - optional, will be implemented later
+# hidapi.workspace = true
+
+# ALSA fallback uses amixer subprocess, no native binding needed
+
+[lints]
+workspace = true

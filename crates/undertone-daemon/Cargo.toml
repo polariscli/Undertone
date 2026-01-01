@@ -1,0 +1,38 @@
+[package]
+name = "undertone-daemon"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Undertone daemon - PipeWire audio control service"
+
+[[bin]]
+name = "undertone-daemon"
+path = "src/main.rs"
+
+[dependencies]
+undertone-core = { path = "../undertone-core" }
+undertone-pipewire = { path = "../undertone-pipewire" }
+undertone-db = { path = "../undertone-db" }
+undertone-ipc = { path = "../undertone-ipc" }
+undertone-hid = { path = "../undertone-hid", optional = true }
+
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+toml.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+directories.workspace = true
+
+signal-hook = "0.3"
+signal-hook-tokio = { version = "0.3", features = ["futures-v0_3"] }
+
+[features]
+default = []
+hid = ["dep:undertone-hid"]
+
+[lints]
+workspace = true

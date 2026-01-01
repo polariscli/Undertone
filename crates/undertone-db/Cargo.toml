@@ -1,0 +1,21 @@
+[package]
+name = "undertone-db"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Undertone database - SQLite persistence layer"
+
+[dependencies]
+undertone-core = { path = "../undertone-core" }
+
+rusqlite.workspace = true
+tokio-rusqlite.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+thiserror.workspace = true
+serde.workspace = true
+directories.workspace = true
+
+[lints]
+workspace = true

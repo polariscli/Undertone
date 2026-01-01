@@ -1,0 +1,24 @@
+[package]
+name = "undertone-ipc"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Undertone IPC - Unix socket protocol and client library"
+
+[dependencies]
+undertone-core = { path = "../undertone-core" }
+
+tokio.workspace = true
+tokio-util.workspace = true
+bytes.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+thiserror.workspace = true
+futures.workspace = true
+directories.workspace = true
+libc = "0.2"
+
+[lints]
+workspace = true
