@@ -6,9 +6,9 @@
 
 ---
 
-## Current Status: Milestone 8 Complete
+## Current Status: IPC Integration Complete
 
-Profile management is now implemented. Users can save mixer configurations to named profiles, load them from a dropdown, and switch between profiles. The complete UI covers Mixer, Apps, Device pages, and Profile management.
+The UI is now connected to the daemon via IPC. The UI starts a background tokio runtime that connects to the daemon socket, subscribes to events, and handles bidirectional communication. State updates flow from daemon to UI in real-time.
 
 ### Verified Working Features
 
@@ -293,6 +293,27 @@ Undertone/
 
 ---
 
+### ✅ Milestone 8.5: IPC Integration (COMPLETE)
+
+**Deliverables:**
+
+- [x] Connect UI to daemon socket
+- [x] Real-time state synchronization
+- [x] Event subscription handling
+- [x] Command dispatch from UI to daemon
+
+**Technical Implementation:**
+
+- Added `ipc_handler.rs` module with tokio runtime in background thread
+- `IpcHandle` manages connection, command sending, update receiving
+- Uses `IpcUpdate` enum for daemon-to-UI communication
+- Global `IPC_HANDLE` and `UI_DATA` caches for thread-safe state sharing
+- `poll_updates()` QML-invokable called by Timer at 20Hz
+- All controller methods use `send_command()` for daemon communication
+- Subscribes to: volume/mute changes, device connect/disconnect, app events, profile changes
+
+---
+
 ### 🔮 Milestone 9: Wave:3 Hardware (DEFERRED)
 
 **Status:** Deferred until core mixer is stable. Using ALSA fallback.
@@ -409,24 +430,20 @@ pw-cli list-objects Node | grep ut-
    - Route mic input to mixes with volume control
    - Apply volume changes to PipeWire nodes
 
-3. **IPC Integration**
-   - Connect UI to daemon socket
-   - Real-time state synchronization
-   - Event subscription handling
-
 ---
 
 ## Known Issues
 
-1. **Qt UI disabled**: Build skipped until Qt development packages installed properly
-2. **HID integration deferred**: Using ALSA fallback for mic gain control
-3. **Unused warnings**: Several unused imports in scaffolding code (will be used in later milestones)
+1. **HID integration deferred**: Using ALSA fallback for mic gain control
+2. **VU meters not yet live**: Need PipeWire level monitoring integration
+3. **Volume changes not applied to PipeWire**: Requires filter nodes (Milestone 3b)
 
 ---
 
 ## Git History
 
 ```
+3d45413 feat(ui): Implement IPC integration between UI and daemon
 1ac61ae docs: Add PROGRESS.md with development status
 f8d6ec8 feat: Implement Undertone daemon with PipeWire integration
 ```
