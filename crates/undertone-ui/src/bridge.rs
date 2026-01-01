@@ -97,7 +97,8 @@ mod ffi {
     unsafe extern "RustQt" {
         #[qobject]
         #[qml_element]
-        #[qproperty(bool, connected)]
+        #[qproperty(bool, connected)]           // Connected to daemon
+        #[qproperty(bool, device_connected)]    // Wave:3 device connected
         #[qproperty(QString, device_serial)]
         #[qproperty(QString, active_profile)]
         #[qproperty(i32, mix_mode)]
@@ -216,6 +217,7 @@ mod ffi {
 /// Rust backing struct for UndertoneController QObject.
 pub struct UndertoneControllerRust {
     connected: bool,
+    device_connected: bool,
     device_serial: QString,
     active_profile: QString,
     mix_mode: i32,
@@ -230,6 +232,7 @@ impl Default for UndertoneControllerRust {
     fn default() -> Self {
         Self {
             connected: false,
+            device_connected: false,
             device_serial: QString::from(""),
             active_profile: QString::from("Default"),
             mix_mode: 0,
@@ -512,13 +515,17 @@ impl ffi::UndertoneController {
                     channels = channels.len(),
                     apps = apps.len(),
                     profiles = profiles.len(),
+                    device_connected,
                     "State updated from daemon"
                 );
 
-                // Update simple properties
-                self.as_mut().set_connected(device_connected);
+                // Note: `connected` stays true (connected to daemon).
+                // `device_connected` indicates if Wave:3 is connected.
+                self.as_mut().set_device_connected(device_connected);
                 self.as_mut()
-                    .set_device_serial(QString::from(device_serial.as_deref().unwrap_or("")));
+                    .set_device_serial(QString::from(device_serial.as_deref().unwrap_or(
+                        if device_connected { "unknown" } else { "" }
+                    )));
                 self.as_mut().set_active_profile(QString::from(active_profile.as_str()));
 
                 // Update global cache for vector data
@@ -562,12 +569,12 @@ impl ffi::UndertoneController {
             }
             IpcUpdate::DeviceConnected { serial } => {
                 info!(?serial, "Device connected");
-                self.as_mut().set_connected(true);
-                self.as_mut().set_device_serial(QString::from(serial.as_deref().unwrap_or("")));
+                self.as_mut().set_device_connected(true);
+                self.as_mut().set_device_serial(QString::from(serial.as_deref().unwrap_or("unknown")));
             }
             IpcUpdate::DeviceDisconnected => {
                 info!("Device disconnected");
-                self.as_mut().set_connected(false);
+                self.as_mut().set_device_connected(false);
                 self.as_mut().set_device_serial(QString::from(""));
             }
             IpcUpdate::Error(msg) => {

@@ -78,7 +78,7 @@ Rectangle {
 
             ListView {
                 id: appList
-                model: controller.appCount
+                model: controller.app_count
                 spacing: 8
 
                 delegate: Rectangle {
@@ -89,10 +89,10 @@ Rectangle {
                     color: "#16213e"
                     radius: 8
 
-                    property string appName: controller.appName(index)
-                    property string appBinary: controller.appBinary(index)
-                    property string appChannel: controller.appChannel(index)
-                    property bool isPersistent: controller.appPersistent(index)
+                    property string appName: controller.app_name(index)
+                    property string appBinary: controller.app_binary(index)
+                    property string appChannel: controller.app_channel(index)
+                    property bool isPersistent: controller.app_persistent(index)
 
                     RowLayout {
                         anchors.fill: parent
@@ -168,11 +168,11 @@ Rectangle {
                         ComboBox {
                             id: channelCombo
                             Layout.preferredWidth: 120
-                            model: controller.availableChannels().split(",")
+                            model: controller.available_channels().split(",")
                             currentIndex: model.indexOf(appChannel)
 
                             onActivated: (idx) => {
-                                controller.setAppChannel(appBinary || appName, model[idx])
+                                controller.set_app_channel(appBinary || appName, model[idx])
                             }
 
                             background: Rectangle {
@@ -235,7 +235,7 @@ Rectangle {
 
         // Empty state
         Label {
-            visible: controller.appCount === 0
+            visible: controller.app_count === 0
             Layout.fillWidth: true
             Layout.fillHeight: true
             horizontalAlignment: Text.AlignHCenter

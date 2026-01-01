@@ -66,7 +66,7 @@ ApplicationWindow {
                 }
 
                 Label {
-                    text: controller.connected ? (controller.deviceSerial || "Connected") : "Disconnected"
+                    text: controller.connected ? (controller.device_serial || "Connected") : "Disconnected"
                     font.pixelSize: 12
                     color: "#94a3b8"
                 }
@@ -81,10 +81,10 @@ ApplicationWindow {
                 Button {
                     text: "Stream"
                     flat: true
-                    checked: controller.mixMode === 0
+                    checked: controller.mix_mode === 0
                     checkable: true
                     font.pixelSize: 12
-                    onClicked: controller.changeMixMode(0)
+                    onClicked: controller.change_mix_mode(0)
 
                     background: Rectangle {
                         color: parent.checked ? "#e94560" : "transparent"
@@ -102,10 +102,10 @@ ApplicationWindow {
                 Button {
                     text: "Monitor"
                     flat: true
-                    checked: controller.mixMode === 1
+                    checked: controller.mix_mode === 1
                     checkable: true
                     font.pixelSize: 12
-                    onClicked: controller.changeMixMode(1)
+                    onClicked: controller.change_mix_mode(1)
 
                     background: Rectangle {
                         color: parent.checked ? "#e94560" : "transparent"
@@ -133,11 +133,11 @@ ApplicationWindow {
 
                     property int selectedIdx: 0
 
-                    displayText: controller.profileName(selectedIdx)
+                    displayText: controller.profile_name(selectedIdx)
 
                     onActivated: (index) => {
                         selectedIdx = index
-                        controller.loadProfile(controller.profileName(index))
+                        controller.load_profile(controller.profile_name(index))
                     }
 
                     background: Rectangle {
@@ -159,13 +159,13 @@ ApplicationWindow {
 
                         contentItem: RowLayout {
                             Text {
-                                text: controller.profileName(index)
+                                text: controller.profile_name(index)
                                 color: "#ffffff"
                                 font.pixelSize: 12
                                 Layout.fillWidth: true
                             }
                             Text {
-                                text: controller.profileIsDefault(index) ? "*" : ""
+                                text: controller.profile_is_default(index) ? "*" : ""
                                 color: "#e94560"
                                 font.pixelSize: 12
                             }
@@ -334,7 +334,7 @@ ApplicationWindow {
             Item { Layout.fillWidth: true }
 
             Label {
-                text: "Profile: " + controller.activeProfile
+                text: "Profile: " + controller.active_profile
                 font.pixelSize: 11
                 color: "#64748b"
             }
@@ -437,7 +437,7 @@ ApplicationWindow {
                     enabled: profileNameField.text.trim().length > 0
 
                     onClicked: {
-                        controller.saveProfile(profileNameField.text.trim())
+                        controller.save_profile(profileNameField.text.trim())
                         profileNameField.text = ""
                         saveProfileDialog.close()
                     }

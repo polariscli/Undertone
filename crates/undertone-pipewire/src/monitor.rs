@@ -166,9 +166,15 @@ impl GraphMonitor {
                 // Send event
                 let _ = event_tx.blocking_send(GraphEvent::NodeAdded(node_info.clone()));
 
-                // Check for Wave:3
-                if node_info.is_wave3() && node_info.name == "wave3-source" {
-                    info!("Wave:3 microphone detected");
+                // Check for Wave:3 source (mic)
+                // Detect by custom name "wave3-source" OR by device properties/name patterns
+                let is_wave3_source = node_info.name == "wave3-source"
+                    || (node_info.is_wave3()
+                        && media_class.as_deref() == Some("Audio/Source")
+                        && (node_info.name.contains("Elgato") || node_info.name.contains("Wave")));
+
+                if is_wave3_source {
+                    info!(node_name = %node_info.name, "Wave:3 microphone detected");
                     let serial =
                         props.and_then(|p| p.get("device.serial")).unwrap_or("unknown").to_string();
                     let _ = event_tx.blocking_send(GraphEvent::Wave3Detected { serial });
@@ -236,9 +242,13 @@ impl GraphMonitor {
         if let Some(name) = nodes.borrow_mut().remove(&id) {
             debug!(id, name = %name, "Node removed");
 
-            // Check if Wave:3 was removed
-            if name == "wave3-source" {
-                warn!("Wave:3 microphone disconnected");
+            // Check if Wave:3 was removed (by custom name or Elgato pattern)
+            let is_wave3_source = name == "wave3-source"
+                || (name.contains("Elgato") && name.contains("Wave") && name.contains("input"))
+                || (name.starts_with("alsa_input") && name.contains("Elgato"));
+
+            if is_wave3_source {
+                warn!(node_name = %name, "Wave:3 microphone disconnected");
                 let _ = event_tx.blocking_send(GraphEvent::Wave3Removed);
             }
 

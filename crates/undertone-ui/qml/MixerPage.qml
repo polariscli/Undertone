@@ -16,25 +16,25 @@ Rectangle {
 
         // Channel strips using index-based access
         Repeater {
-            model: controller.channelCount
+            model: controller.channel_count
 
             ChannelStrip {
                 required property int index
 
-                channelName: controller.channelName(index)
-                displayName: controller.channelDisplayName(index)
-                volume: controller.channelVolume(index)
-                muted: controller.channelMuted(index)
+                channelName: controller.channel_name(index)
+                displayName: controller.channel_display_name(index)
+                volume: controller.channel_volume(index)
+                muted: controller.channel_muted(index)
                 levelLeft: 0.0  // TODO: Get from controller
                 levelRight: 0.0
                 channelColor: getChannelColor(index)
 
                 onVolumeAdjusted: (newVolume) => {
-                    controller.setChannelVolume(channelName, newVolume)
+                    controller.set_channel_volume(channelName, newVolume)
                 }
 
                 onMuteToggled: {
-                    controller.toggleChannelMute(channelName)
+                    controller.toggle_channel_mute(channelName)
                 }
 
                 function getChannelColor(idx) {
@@ -68,6 +68,8 @@ Rectangle {
                 }
 
                 // Master volume slider (vertical)
+                // TODO: Master volume is not yet implemented in daemon.
+                // This slider is currently non-functional.
                 Slider {
                     id: masterSlider
                     orientation: Qt.Vertical
@@ -76,6 +78,7 @@ Rectangle {
                     value: 1.0
                     Layout.fillHeight: true
                     Layout.alignment: Qt.AlignHCenter
+                    enabled: false  // Disabled until daemon support is added
 
                     background: Rectangle {
                         x: masterSlider.leftPadding + masterSlider.availableWidth / 2 - width / 2
@@ -113,6 +116,7 @@ Rectangle {
                 }
 
                 // Master mute button
+                // TODO: Master mute is not yet implemented in daemon.
                 Button {
                     Layout.preferredWidth: 48
                     Layout.preferredHeight: 32
@@ -120,15 +124,16 @@ Rectangle {
                     flat: true
                     text: "M"
                     font.bold: true
+                    enabled: false  // Disabled until daemon support is added
 
                     background: Rectangle {
-                        color: "#0f3460"
+                        color: enabled ? "#0f3460" : "#1a1a2e"
                         radius: 4
                     }
 
                     contentItem: Text {
                         text: parent.text
-                        color: "#ffffff"
+                        color: enabled ? "#ffffff" : "#64748b"
                         horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
                     }
@@ -140,7 +145,7 @@ Rectangle {
     // Empty state when no channels
     Label {
         anchors.centerIn: parent
-        visible: controller.channelCount === 0
+        visible: controller.channel_count === 0
         text: "No channels available"
         color: "#64748b"
         font.pixelSize: 18

@@ -183,6 +183,72 @@ impl GraphManager {
         self.nodes.read().values().filter(|n| n.is_wave3()).cloned().collect()
     }
 
+    /// Find the Wave:3 headphone sink.
+    ///
+    /// First tries to find by the custom name "wave3-sink", then falls back
+    /// to searching by device properties (vendor.id and product.id).
+    #[must_use]
+    pub fn find_wave3_sink(&self) -> Option<NodeInfo> {
+        // First try the custom WirePlumber name
+        if let Some(node) = self.get_node_by_name("wave3-sink") {
+            return Some(node);
+        }
+
+        // Fall back to searching by device properties
+        self.nodes
+            .read()
+            .values()
+            .find(|n| {
+                // Check if it's an Elgato Wave:3 sink
+                let is_wave3_vendor = n
+                    .properties
+                    .get("device.vendor.id")
+                    .map_or(false, |v| v == "0x0fd9");
+                let is_wave3_product = n
+                    .properties
+                    .get("device.product.id")
+                    .map_or(false, |v| v == "0x0070");
+                let is_sink = n.media_class.as_ref().map_or(false, |c| c == "Audio/Sink");
+                let is_alsa = n.name.starts_with("alsa_output");
+
+                // Match by vendor/product ID or by name containing Elgato Wave
+                let is_wave3_by_name = n.name.contains("Elgato")
+                    && n.name.contains("Wave")
+                    && is_sink;
+                let is_wave3_by_id = is_wave3_vendor && is_wave3_product && is_sink;
+
+                (is_wave3_by_id || is_wave3_by_name || (is_alsa && n.is_wave3()))
+                    && is_sink
+            })
+            .cloned()
+    }
+
+    /// Find the Wave:3 microphone source.
+    ///
+    /// First tries to find by the custom name "wave3-source", then falls back
+    /// to searching by device properties.
+    #[must_use]
+    pub fn find_wave3_source(&self) -> Option<NodeInfo> {
+        // First try the custom WirePlumber name
+        if let Some(node) = self.get_node_by_name("wave3-source") {
+            return Some(node);
+        }
+
+        // Fall back to searching by device properties
+        self.nodes
+            .read()
+            .values()
+            .find(|n| {
+                let is_source = n.media_class.as_ref().map_or(false, |c| c == "Audio/Source");
+                let is_wave3_by_name = (n.name.contains("Elgato") || n.name.contains("Wave"))
+                    && is_source;
+                let is_alsa_input = n.name.starts_with("alsa_input");
+
+                (is_wave3_by_name || (is_alsa_input && n.is_wave3())) && is_source
+            })
+            .cloned()
+    }
+
     /// Get all Undertone channel nodes.
     #[must_use]
     pub fn get_undertone_channels(&self) -> Vec<NodeInfo> {

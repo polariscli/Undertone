@@ -417,6 +417,7 @@ impl PipeWireRuntime {
     /// Link the monitor-mix output to the Wave:3 headphone sink.
     ///
     /// This enables local monitoring through the headphones.
+    /// Uses flexible detection to find Wave:3 by name or device properties.
     pub fn link_monitor_to_headphones(&self) -> PwResult<(u32, u32)> {
         // Get monitor-mix from registry (not created_nodes)
         let monitor_mix = self
@@ -424,15 +425,16 @@ impl PipeWireRuntime {
             .get_node_by_name("ut-monitor-mix")
             .ok_or_else(|| PwError::NodeNotFound("ut-monitor-mix".to_string()))?;
 
-        // Find the Wave:3 sink node
+        // Find the Wave:3 sink node (by name or device properties)
         let wave3_sink = self
             .graph
-            .get_node_by_name("wave3-sink")
-            .ok_or_else(|| PwError::NodeNotFound("wave3-sink".to_string()))?;
+            .find_wave3_sink()
+            .ok_or_else(|| PwError::NodeNotFound("Wave:3 sink (wave3-sink or Elgato output)".to_string()))?;
 
         info!(
             monitor_mix_id = monitor_mix.id,
             wave3_sink_id = wave3_sink.id,
+            wave3_sink_name = %wave3_sink.name,
             "Linking monitor-mix to Wave:3 headphones"
         );
 
@@ -1039,9 +1041,15 @@ fn handle_global(
             graph.add_node(node_info.clone());
             let _ = event_tx.blocking_send(GraphEvent::NodeAdded(node_info.clone()));
 
-            // Detect Wave:3
-            if node_info.is_wave3() && node_info.name == "wave3-source" {
-                info!("Wave:3 microphone detected");
+            // Detect Wave:3 source (mic)
+            // Detect by custom name "wave3-source" OR by device properties/name patterns
+            let is_wave3_source = node_info.name == "wave3-source"
+                || (node_info.is_wave3()
+                    && media_class.as_deref() == Some("Audio/Source")
+                    && (node_info.name.contains("Elgato") || node_info.name.contains("Wave")));
+
+            if is_wave3_source {
+                info!(node_name = %node_info.name, "Wave:3 microphone detected");
                 let serial =
                     props.and_then(|p| p.get("device.serial")).unwrap_or("unknown").to_string();
                 let _ = event_tx.blocking_send(GraphEvent::Wave3Detected { serial });
@@ -1131,8 +1139,13 @@ fn handle_global_remove(
     if let Some(name) = nodes.borrow_mut().remove(&id) {
         debug!(id, name = %name, "Node removed");
 
-        if name == "wave3-source" {
-            warn!("Wave:3 microphone disconnected");
+        // Check if Wave:3 was removed (by custom name or Elgato pattern)
+        let is_wave3_source = name == "wave3-source"
+            || (name.contains("Elgato") && name.contains("Wave") && name.contains("input"))
+            || (name.starts_with("alsa_input") && name.contains("Elgato"));
+
+        if is_wave3_source {
+            warn!(node_name = %name, "Wave:3 microphone disconnected");
             let _ = event_tx.blocking_send(GraphEvent::Wave3Removed);
         }
 

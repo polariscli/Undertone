@@ -125,18 +125,27 @@ impl IpcServer {
             );
         }
 
+        // Track pending requests to handle one-shot clients (like socat)
+        let mut pending_requests: u64 = 0;
+        let mut client_eof = false;
+
         loop {
             tokio::select! {
-                // Read request from client
-                result = reader.read_line(&mut line) => {
+                // Read request from client (only if not at EOF)
+                result = reader.read_line(&mut line), if !client_eof => {
                     match result {
                         Ok(0) => {
-                            debug!(client_id, "Client disconnected");
-                            break;
+                            debug!(client_id, "Client EOF");
+                            client_eof = true;
+                            // If no pending requests, exit now
+                            if pending_requests == 0 {
+                                break;
+                            }
                         }
                         Ok(_) => {
                             if let Ok(request) = serde_json::from_str::<Request>(&line) {
                                 debug!(client_id, request_id = request.id, "Received request");
+                                pending_requests += 1;
                                 let _ = request_tx.send((client_id, request, response_tx.clone())).await;
                             } else {
                                 warn!(client_id, "Invalid request format");
@@ -157,10 +166,19 @@ impl IpcServer {
                         error!(client_id, error = %e, "Write error");
                         break;
                     }
+                    if let Err(e) = writer.flush().await {
+                        error!(client_id, error = %e, "Flush error");
+                        break;
+                    }
+                    pending_requests = pending_requests.saturating_sub(1);
+                    // If client is at EOF and no more pending requests, exit
+                    if client_eof && pending_requests == 0 {
+                        break;
+                    }
                 }
 
-                // Forward events to client
-                Ok(event) = event_rx.recv() => {
+                // Forward events to client (only if not at EOF)
+                Ok(event) = event_rx.recv(), if !client_eof => {
                     let clients = clients.read().await;
                     if let Some(handle) = clients.get(&client_id) {
                         if handle.subscriptions.contains(&event.event) || handle.subscriptions.is_empty() {

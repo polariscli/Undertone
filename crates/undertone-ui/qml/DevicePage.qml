@@ -30,7 +30,7 @@ Rectangle {
                     Layout.preferredWidth: 80
                     Layout.preferredHeight: 80
                     radius: 12
-                    color: controller.connected ? "#0f3460" : "#2d1f3d"
+                    color: controller.device_connected ? "#0f3460" : "#2d1f3d"
 
                     Image {
                         anchors.centerIn: parent
@@ -46,7 +46,7 @@ Rectangle {
                         text: "MIC"
                         font.pixelSize: 16
                         font.bold: true
-                        color: controller.connected ? "#e94560" : "#64748b"
+                        color: controller.device_connected ? "#e94560" : "#64748b"
                     }
                 }
 
@@ -69,18 +69,18 @@ Rectangle {
                             width: 10
                             height: 10
                             radius: 5
-                            color: controller.connected ? "#4ade80" : "#ef4444"
+                            color: controller.device_connected ? "#4ade80" : "#ef4444"
                         }
 
                         Label {
-                            text: controller.connected ? "Connected" : "Disconnected"
+                            text: controller.device_connected ? "Connected" : "Disconnected"
                             font.pixelSize: 14
-                            color: controller.connected ? "#4ade80" : "#ef4444"
+                            color: controller.device_connected ? "#4ade80" : "#ef4444"
                         }
                     }
 
                     Label {
-                        text: controller.connected ? "Serial: " + (controller.deviceSerial || "Unknown") : "Device not detected"
+                        text: controller.device_connected ? "Serial: " + (controller.device_serial || "Unknown") : "Device not detected"
                         font.pixelSize: 12
                         color: "#64748b"
                     }
@@ -92,16 +92,16 @@ Rectangle {
                     width: 100
                     height: 32
                     radius: 16
-                    color: controller.connected ? "#0f3460" : "#2d1f3d"
-                    border.color: controller.connected ? "#4ade80" : "#ef4444"
+                    color: controller.device_connected ? "#0f3460" : "#2d1f3d"
+                    border.color: controller.device_connected ? "#4ade80" : "#ef4444"
                     border.width: 1
 
                     Label {
                         anchors.centerIn: parent
-                        text: controller.connected ? "ONLINE" : "OFFLINE"
+                        text: controller.device_connected ? "ONLINE" : "OFFLINE"
                         font.pixelSize: 11
                         font.bold: true
-                        color: controller.connected ? "#4ade80" : "#ef4444"
+                        color: controller.device_connected ? "#4ade80" : "#ef4444"
                     }
                 }
             }
@@ -113,7 +113,7 @@ Rectangle {
             Layout.preferredHeight: 200
             color: "#16213e"
             radius: 12
-            opacity: controller.connected ? 1.0 : 0.5
+            opacity: controller.device_connected ? 1.0 : 0.5
 
             ColumnLayout {
                 anchors.fill: parent
@@ -144,11 +144,11 @@ Rectangle {
                         Layout.fillWidth: true
                         from: 0
                         to: 1
-                        value: controller.micGain
-                        enabled: controller.connected && !controller.micMuted
+                        value: controller.mic_gain
+                        enabled: controller.device_connected && !controller.mic_muted
 
                         onMoved: {
-                            controller.setMicGainValue(value)
+                            controller.set_mic_gain_value(value)
                         }
 
                         background: Rectangle {
@@ -180,7 +180,7 @@ Rectangle {
                     }
 
                     Label {
-                        text: (isNaN(controller.micGain) ? 75 : Math.round(controller.micGain * 100)) + "%"
+                        text: (isNaN(controller.mic_gain) ? 75 : Math.round(controller.mic_gain * 100)) + "%"
                         font.pixelSize: 14
                         color: "#ffffff"
                         Layout.preferredWidth: 50
@@ -204,15 +204,15 @@ Rectangle {
                         id: muteButton
                         Layout.preferredWidth: 120
                         Layout.preferredHeight: 40
-                        text: controller.micMuted ? "UNMUTE" : "MUTE"
-                        enabled: controller.connected
+                        text: controller.mic_muted ? "UNMUTE" : "MUTE"
+                        enabled: controller.device_connected
 
-                        onClicked: controller.toggleMicMute()
+                        onClicked: controller.toggle_mic_mute()
 
                         background: Rectangle {
-                            color: controller.micMuted ? "#ef4444" : "#0f3460"
+                            color: controller.mic_muted ? "#ef4444" : "#0f3460"
                             radius: 8
-                            border.color: controller.micMuted ? "#fca5a5" : "#e94560"
+                            border.color: controller.mic_muted ? "#fca5a5" : "#e94560"
                             border.width: 1
                         }
 
@@ -230,7 +230,7 @@ Rectangle {
 
                     // Mute status indicator
                     Rectangle {
-                        visible: controller.micMuted
+                        visible: controller.mic_muted
                         width: 100
                         height: 32
                         radius: 4
@@ -247,7 +247,7 @@ Rectangle {
                                 color: "#ef4444"
 
                                 SequentialAnimation on opacity {
-                                    running: controller.micMuted
+                                    running: controller.mic_muted
                                     loops: Animation.Infinite
                                     NumberAnimation { to: 0.3; duration: 500 }
                                     NumberAnimation { to: 1.0; duration: 500 }
@@ -328,7 +328,7 @@ Rectangle {
         anchors.fill: parent
         color: "#1a1a2e"
         opacity: 0.7
-        visible: !controller.connected
+        visible: !controller.device_connected
 
         MouseArea {
             anchors.fill: parent

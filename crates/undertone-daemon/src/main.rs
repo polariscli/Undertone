@@ -171,8 +171,8 @@ async fn main() -> Result<()> {
     }
 
     // Link monitor-mix to headphones if Wave:3 is connected
-    if graph.get_node_by_name("wave3-sink").is_some() {
-        info!("Linking monitor-mix to Wave:3 headphones...");
+    if let Some(wave3_sink) = graph.find_wave3_sink() {
+        info!(sink_name = %wave3_sink.name, "Linking monitor-mix to Wave:3 headphones...");
         match pw_runtime.link_monitor_to_headphones() {
             Ok((left_id, right_id)) => {
                 info!("Monitor-mix linked to headphones");
