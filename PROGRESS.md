@@ -16,6 +16,7 @@ The daemon and UI are fully functional with all core mixing features. Volume con
 - ✅ **Volume sliders change actual audio** - PipeWire volume filter nodes control per-channel levels
 - ✅ **Mute buttons work** - PipeWire mute property toggled on filter nodes
 - ✅ **Master volume control** - Per-mix master volume and mute in UI
+- ✅ **Monitor output selection** - Switch between headphones, speakers, HDMI, etc.
 - ✅ **App routing works** - Apps automatically routed to channels based on pattern rules
 - ✅ **SetAppRoute re-routes apps** - Changing route moves audio immediately
 - ✅ **Profiles save/load work** - Channel volumes, mutes, mixer state, and routes persisted to DB
@@ -563,6 +564,7 @@ pw-cli list-objects Node | grep ut-
 ## Git History (Recent)
 
 ```
+e667056 feat(ui): Add monitor output device selection
 84b8f1d fix(ui): Improve header status and toggle styling
 fd7e874 feat(ui): Add master volume control and fix ComboBox issues
 92a1bb6 feat(daemon): Track active app routes in StateSnapshot
@@ -577,5 +579,4 @@ d124afe feat(pipewire): Add flexible Wave:3 detection and WirePlumber scripts
 d6029ec feat(install): Add installation scripts and update documentation
 447792c feat(usb): Add USB device detection with rusb
 6c6bd62 feat(mic): Wire ALSA mic control to daemon commands
-61f97d2 feat(profiles): Implement profile save/load/delete functionality
 ```
