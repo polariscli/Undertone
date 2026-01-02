@@ -211,6 +211,8 @@ async fn main() -> Result<()> {
     let mut state = DaemonState::Running;
     let mut active_profile = String::from("Default");
     let mut mixer = undertone_core::mixer::MixerState::default();
+    // Track current monitor output device (defaults to Wave:3 headphones)
+    let mut monitor_output = String::from("wave3-sink");
 
     // Load default profile on startup (apply channel states to PipeWire)
     if let Ok(Some(default_profile_name)) = db.get_default_profile() {
@@ -427,6 +429,19 @@ async fn main() -> Result<()> {
 
                 // Build current state snapshot
                 let profiles = db.list_profiles().unwrap_or_default();
+
+                // Get available output devices from PipeWire
+                use undertone_core::state::OutputDevice;
+                let output_devices: Vec<OutputDevice> = graph
+                    .get_audio_output_devices()
+                    .into_iter()
+                    .map(|n| OutputDevice {
+                        name: n.name.clone(),
+                        description: n.description.clone().unwrap_or_else(|| n.name.clone()),
+                        node_id: n.id,
+                    })
+                    .collect();
+
                 let snapshot = StateSnapshot {
                     state: state.clone(),
                     device_connected,
@@ -436,6 +451,8 @@ async fn main() -> Result<()> {
                     mixer: mixer.clone(),
                     active_profile: active_profile.clone(),
                     profiles,
+                    output_devices,
+                    monitor_output: monitor_output.clone(),
                     created_nodes: graph.get_created_nodes(),
                     created_links: graph.get_created_links(),
                 };
@@ -780,6 +797,34 @@ async fn main() -> Result<()> {
                                 }
                             } else {
                                 warn!("Mic control not available (no Wave:3 device)");
+                            }
+                        }
+
+                        Command::SetMonitorOutput { device_name } => {
+                            info!(device = %device_name, "Switching monitor output");
+
+                            // Unlink from current output device
+                            if let Err(e) = pw_runtime.unlink_monitor_from_output(&monitor_output) {
+                                warn!(error = %e, current = %monitor_output, "Failed to unlink from current output");
+                            }
+
+                            // Link to new output device
+                            match pw_runtime.link_monitor_to_output(&device_name) {
+                                Ok((left_id, right_id)) => {
+                                    info!(device = %device_name, "Monitor output switched successfully");
+                                    // Update tracked links
+                                    graph.record_created_link(format!("monitor-mix->{device_name}:FL"), left_id);
+                                    graph.record_created_link(format!("monitor-mix->{device_name}:FR"), right_id);
+                                    // Update current monitor output
+                                    monitor_output = device_name;
+                                }
+                                Err(e) => {
+                                    error!(error = %e, device = %device_name, "Failed to link to new output device");
+                                    // Try to restore connection to previous device
+                                    if let Err(restore_err) = pw_runtime.link_monitor_to_output(&monitor_output) {
+                                        error!(error = %restore_err, "Failed to restore previous output");
+                                    }
+                                }
                             }
                         }
 

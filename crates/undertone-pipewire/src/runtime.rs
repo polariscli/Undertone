@@ -455,6 +455,59 @@ impl PipeWireRuntime {
         self.create_stereo_links(monitor_mix.id, wave3_sink.id)
     }
 
+    /// Link the monitor-mix output to a specific output device by name.
+    ///
+    /// This allows switching monitor output to different devices (headphones, speakers, etc.)
+    pub fn link_monitor_to_output(&self, output_device_name: &str) -> PwResult<(u32, u32)> {
+        // Get monitor-mix
+        let monitor_mix = self
+            .graph
+            .get_node_by_name("ut-monitor-mix")
+            .ok_or_else(|| PwError::NodeNotFound("ut-monitor-mix".to_string()))?;
+
+        // Find the output device by name
+        let output_device = self
+            .graph
+            .get_node_by_name(output_device_name)
+            .ok_or_else(|| PwError::NodeNotFound(output_device_name.to_string()))?;
+
+        info!(
+            monitor_mix_id = monitor_mix.id,
+            output_id = output_device.id,
+            output_name = %output_device.name,
+            "Linking monitor-mix to output device"
+        );
+
+        self.create_stereo_links(monitor_mix.id, output_device.id)
+    }
+
+    /// Destroy monitor-mix links to a specific output device.
+    ///
+    /// Call this before switching to a new output device.
+    pub fn unlink_monitor_from_output(&self, output_device_name: &str) -> PwResult<()> {
+        // Get monitor-mix
+        let monitor_mix = self
+            .graph
+            .get_node_by_name("ut-monitor-mix")
+            .ok_or_else(|| PwError::NodeNotFound("ut-monitor-mix".to_string()))?;
+
+        // Find the output device by name
+        let output_device = self.graph.get_node_by_name(output_device_name);
+
+        if let Some(output) = output_device {
+            // Find and destroy links between monitor-mix and the output device
+            let links = self.graph.get_all_links();
+            for link in links {
+                if link.output_node == monitor_mix.id && link.input_node == output.id {
+                    info!(link_id = link.id, "Destroying monitor-mix to output link");
+                    self.destroy_link(link.id)?;
+                }
+            }
+        }
+
+        Ok(())
+    }
+
     /// Create a volume filter node.
     ///
     /// This creates a null-audio-sink that can be used as a volume control point

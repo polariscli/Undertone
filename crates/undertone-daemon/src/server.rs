@@ -184,6 +184,29 @@ pub fn handle_request(method: &Method, state: &StateSnapshot) -> HandleResult {
             )
         }
 
+        Method::GetOutputDevices => {
+            debug!("Getting output devices");
+            HandleResult::ok(json!({
+                "devices": state.output_devices,
+                "current": state.monitor_output,
+            }))
+        }
+
+        Method::SetMonitorOutput { device_name } => {
+            // Validate device exists
+            if !state.output_devices.iter().any(|d| d.name == *device_name) {
+                return HandleResult::err(ErrorInfo::new(
+                    404,
+                    format!("Output device not found: {device_name}"),
+                ));
+            }
+            info!(?device_name, "Setting monitor output device");
+            HandleResult::ok_with_command(
+                json!({"success": true, "device": device_name}),
+                Command::SetMonitorOutput { device_name: device_name.clone() },
+            )
+        }
+
         Method::Subscribe { events } => {
             debug!(?events, "Client subscribing to events");
             // Subscription handling is done in the IPC server

@@ -26,6 +26,8 @@ struct UiDataCache {
     channels: Vec<ChannelData>,
     apps: Vec<AppData>,
     profiles: Vec<ProfileData>,
+    output_devices: Vec<OutputDeviceData>,
+    monitor_output: String,
 }
 
 fn get_ui_data() -> &'static Mutex<UiDataCache> {
@@ -34,6 +36,8 @@ fn get_ui_data() -> &'static Mutex<UiDataCache> {
             channels: Vec::new(),
             apps: Vec::new(),
             profiles: vec![ProfileData { name: "Default".to_string(), is_default: true }],
+            output_devices: Vec::new(),
+            monitor_output: "wave3-sink".to_string(),
         })
     })
 }
@@ -87,6 +91,13 @@ pub struct ProfileData {
     pub is_default: bool,
 }
 
+/// Output device data for QML model.
+#[derive(Clone, Default, Debug)]
+pub struct OutputDeviceData {
+    pub name: String,
+    pub description: String,
+}
+
 #[cxx_qt::bridge]
 mod ffi {
     unsafe extern "C++" {
@@ -109,6 +120,8 @@ mod ffi {
         #[qproperty(i32, profile_count)]
         #[qproperty(f32, master_volume)] // Master volume for current mix mode
         #[qproperty(bool, master_muted)] // Master mute for current mix mode
+        #[qproperty(i32, output_device_count)] // Number of available output devices
+        #[qproperty(QString, monitor_output)] // Current monitor output device name
         type UndertoneController = super::UndertoneControllerRust;
 
         /// Change the mix mode (0 = Stream, 1 = Monitor).
@@ -215,6 +228,20 @@ mod ffi {
         #[qinvokable]
         fn delete_profile(self: Pin<&mut UndertoneController>, name: QString);
 
+        // Output device methods
+
+        /// Get output device name by index.
+        #[qinvokable]
+        fn output_device_name(self: &UndertoneController, index: i32) -> QString;
+
+        /// Get output device description by index.
+        #[qinvokable]
+        fn output_device_description(self: &UndertoneController, index: i32) -> QString;
+
+        /// Set monitor output device.
+        #[qinvokable]
+        fn set_monitor_output_device(self: Pin<&mut UndertoneController>, device_name: QString);
+
         /// Poll for updates from the IPC handler.
         /// Call this periodically from a QML Timer.
         #[qinvokable]
@@ -240,6 +267,8 @@ pub struct UndertoneControllerRust {
     profile_count: i32,
     master_volume: f32,
     master_muted: bool,
+    output_device_count: i32,
+    monitor_output: QString,
 }
 
 impl Default for UndertoneControllerRust {
@@ -257,6 +286,8 @@ impl Default for UndertoneControllerRust {
             profile_count: 1,
             master_volume: 1.0,
             master_muted: false,
+            output_device_count: 0,
+            monitor_output: QString::from("wave3-sink"),
         }
     }
 }
@@ -271,6 +302,7 @@ pub enum UiCommand {
     SetAppChannel { app_pattern: String, channel: String },
     SetMicGain { gain: f32 },
     SetMicMute { muted: bool },
+    SetMonitorOutput { device_name: String },
     SaveProfile { name: String },
     LoadProfile { name: String },
     DeleteProfile { name: String },
@@ -507,6 +539,30 @@ impl ffi::UndertoneController {
         send_command(UiCommand::DeleteProfile { name: profile_name });
     }
 
+    /// Get output device name by index.
+    fn output_device_name(&self, index: i32) -> QString {
+        let cache = get_ui_data().lock().expect("UI_DATA mutex poisoned");
+        cache.output_devices.get(index as usize).map(|d| QString::from(&d.name)).unwrap_or_default()
+    }
+
+    /// Get output device description by index.
+    fn output_device_description(&self, index: i32) -> QString {
+        let cache = get_ui_data().lock().expect("UI_DATA mutex poisoned");
+        cache
+            .output_devices
+            .get(index as usize)
+            .map(|d| QString::from(&d.description))
+            .unwrap_or_default()
+    }
+
+    /// Set monitor output device.
+    fn set_monitor_output_device(mut self: Pin<&mut Self>, device_name: QString) {
+        let name = device_name.to_string();
+        debug!(device = %name, "Setting monitor output device");
+        self.as_mut().set_monitor_output(device_name);
+        send_command(UiCommand::SetMonitorOutput { device_name: name });
+    }
+
     /// Initialize the controller and connect to daemon.
     fn initialize(self: Pin<&mut Self>) {
         // Nothing to do here - IPC is initialized globally in app.rs
@@ -550,11 +606,14 @@ impl ffi::UndertoneController {
                 stream_master_muted,
                 monitor_master_volume,
                 monitor_master_muted,
+                output_devices,
+                monitor_output,
             } => {
                 debug!(
                     channels = channels.len(),
                     apps = apps.len(),
                     profiles = profiles.len(),
+                    output_devices = output_devices.len(),
                     device_connected,
                     "State updated from daemon"
                 );
@@ -570,6 +629,7 @@ impl ffi::UndertoneController {
                     }),
                 ));
                 self.as_mut().set_active_profile(QString::from(active_profile.as_str()));
+                self.as_mut().set_monitor_output(QString::from(monitor_output.as_str()));
 
                 // Set master volume based on current mix mode
                 let mix_mode = self.mix_mode;
@@ -585,21 +645,25 @@ impl ffi::UndertoneController {
                 // IMPORTANT: Release the lock BEFORE calling Qt setters to avoid deadlock!
                 // Qt property changes can trigger QML binding re-evaluation, which may call
                 // methods like channel_name() that also need this lock.
-                let (channel_count, app_count, profile_count) = {
+                let (channel_count, app_count, profile_count, output_device_count) = {
                     let mut cache = get_ui_data().lock().expect("UI_DATA mutex poisoned");
                     cache.channels = channels;
                     cache.apps = apps;
                     cache.profiles = profiles;
+                    cache.output_devices = output_devices;
+                    cache.monitor_output = monitor_output;
                     (
                         cache.channels.len() as i32,
                         cache.apps.len() as i32,
                         cache.profiles.len() as i32,
+                        cache.output_devices.len() as i32,
                     )
                 }; // Lock released here
 
                 // Now safe to update Qt properties - QML bindings can access UI_DATA
                 self.as_mut().set_channel_count(channel_count);
                 self.as_mut().set_app_count(app_count);
+                self.as_mut().set_output_device_count(output_device_count);
                 self.as_mut().set_profile_count(profile_count);
             }
             IpcUpdate::ChannelVolumeChanged { channel, mix, volume } => {

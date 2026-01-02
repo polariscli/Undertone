@@ -17,7 +17,7 @@ use undertone_ipc::events::{
 };
 use undertone_ipc::messages::Method;
 
-use crate::bridge::{AppData, ChannelData, ProfileData, UiCommand};
+use crate::bridge::{AppData, ChannelData, OutputDeviceData, ProfileData, UiCommand};
 use crate::state::UiState;
 use undertone_core::mixer::MixType;
 
@@ -38,6 +38,9 @@ pub enum IpcUpdate {
         stream_master_muted: bool,
         monitor_master_volume: f32,
         monitor_master_muted: bool,
+        // Output devices
+        output_devices: Vec<OutputDeviceData>,
+        monitor_output: String,
     },
     ChannelVolumeChanged {
         channel: String,
@@ -198,6 +201,9 @@ fn command_to_method(cmd: UiCommand) -> Option<Method> {
         }
         UiCommand::SetMicGain { gain } => Some(Method::SetMicGain { gain }),
         UiCommand::SetMicMute { muted } => Some(Method::SetMicMute { muted }),
+        UiCommand::SetMonitorOutput { device_name } => {
+            Some(Method::SetMonitorOutput { device_name })
+        }
         UiCommand::SaveProfile { name } => Some(Method::SaveProfile { name }),
         UiCommand::LoadProfile { name } => Some(Method::LoadProfile { name }),
         UiCommand::DeleteProfile { name } => Some(Method::DeleteProfile { name }),
@@ -355,6 +361,29 @@ fn parse_state_response(value: &serde_json::Value) -> Option<IpcUpdate> {
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
 
+    // Parse output devices
+    let output_devices = value
+        .get("output_devices")
+        .and_then(|v| v.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|d| {
+                    Some(OutputDeviceData {
+                        name: d.get("name")?.as_str()?.to_string(),
+                        description: d
+                            .get("description")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("")
+                            .to_string(),
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+
+    let monitor_output =
+        value.get("monitor_output").and_then(|v| v.as_str()).unwrap_or("wave3-sink").to_string();
+
     Some(IpcUpdate::StateUpdated {
         channels,
         apps,
@@ -366,5 +395,7 @@ fn parse_state_response(value: &serde_json::Value) -> Option<IpcUpdate> {
         stream_master_muted,
         monitor_master_volume,
         monitor_master_muted,
+        output_devices,
+        monitor_output,
     })
 }

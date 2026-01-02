@@ -30,6 +30,8 @@ pub enum Command {
     SetMicGain { gain: f32 },
     /// Set microphone mute state
     SetMicMute { muted: bool },
+    /// Set monitor mix output device
+    SetMonitorOutput { device_name: String },
     /// Trigger reconciliation
     Reconcile,
     /// Request shutdown

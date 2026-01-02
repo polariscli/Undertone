@@ -93,6 +93,12 @@ pub enum Method {
     /// Set microphone mute state
     SetMicMute { muted: bool },
 
+    // Output device control
+    /// Get available audio output devices
+    GetOutputDevices,
+    /// Set the monitor mix output device
+    SetMonitorOutput { device_name: String },
+
     // Subscriptions
     /// Subscribe to event types
     Subscribe { events: Vec<String> },

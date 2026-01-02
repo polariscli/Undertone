@@ -66,6 +66,17 @@ pub enum DaemonEvent {
     ReconcileRequested,
 }
 
+/// An available audio output device.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OutputDevice {
+    /// PipeWire node name (used for identification)
+    pub name: String,
+    /// Human-readable description
+    pub description: String,
+    /// PipeWire node ID
+    pub node_id: u32,
+}
+
 /// Complete snapshot of the daemon's current state.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StateSnapshot {
@@ -85,6 +96,10 @@ pub struct StateSnapshot {
     pub active_profile: String,
     /// Available profiles
     pub profiles: Vec<ProfileSummary>,
+    /// Available audio output devices
+    pub output_devices: Vec<OutputDevice>,
+    /// Current monitor mix output device name
+    pub monitor_output: String,
     /// PipeWire node IDs we've created
     pub created_nodes: HashMap<String, u32>,
     /// PipeWire link IDs we've created
@@ -106,6 +121,8 @@ impl Default for StateSnapshot {
                 is_default: true,
                 description: Some("Default mixer configuration".to_string()),
             }],
+            output_devices: Vec::new(),
+            monitor_output: "wave3-sink".to_string(),
             created_nodes: HashMap::new(),
             created_links: HashMap::new(),
         }

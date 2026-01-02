@@ -264,6 +264,27 @@ impl GraphManager {
             .collect()
     }
 
+    /// Get all available audio output devices (sinks).
+    ///
+    /// Returns physical audio outputs like headphones, speakers, HDMI, etc.
+    /// Excludes Undertone's virtual sinks.
+    #[must_use]
+    pub fn get_audio_output_devices(&self) -> Vec<NodeInfo> {
+        self.nodes
+            .read()
+            .values()
+            .filter(|n| {
+                let is_sink = n.media_class.as_ref().map_or(false, |c| c == "Audio/Sink");
+                // Exclude Undertone's virtual nodes
+                let is_undertone = n.name.starts_with("ut-");
+                // Exclude null sinks used internally
+                let is_null = n.name.contains("null-sink");
+                is_sink && !is_undertone && !is_null
+            })
+            .cloned()
+            .collect()
+    }
+
     /// Record that we created a node.
     pub fn record_created_node(&self, name: String, id: u32) {
         self.created_nodes.write().insert(name, id);

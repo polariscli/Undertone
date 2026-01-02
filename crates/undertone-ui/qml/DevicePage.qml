@@ -261,6 +261,84 @@ Rectangle {
             }
         }
 
+        // Monitor Output Section
+        Rectangle {
+            Layout.fillWidth: true
+            Layout.preferredHeight: 100
+            color: Kirigami.Theme.alternateBackgroundColor
+            radius: 12
+
+            ColumnLayout {
+                anchors.fill: parent
+                anchors.margins: 20
+                spacing: 12
+
+                QQC2.Label {
+                    text: "Monitor Output"
+                    font.pixelSize: 16
+                    font.bold: true
+                    color: Kirigami.Theme.highlightColor
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 16
+
+                    QQC2.Label {
+                        text: "Output Device"
+                        font.pixelSize: 14
+                        color: Kirigami.Theme.disabledTextColor
+                        Layout.preferredWidth: 100
+                    }
+
+                    QQC2.ComboBox {
+                        id: outputDeviceCombo
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 36
+                        model: controller.output_device_count
+
+                        // Find current index based on monitor_output
+                        Component.onCompleted: updateCurrentIndex()
+
+                        function updateCurrentIndex() {
+                            for (let i = 0; i < controller.output_device_count; i++) {
+                                if (controller.output_device_name(i) === controller.monitor_output) {
+                                    currentIndex = i
+                                    return
+                                }
+                            }
+                        }
+
+                        Connections {
+                            target: controller
+                            function onMonitor_outputChanged() {
+                                outputDeviceCombo.updateCurrentIndex()
+                            }
+                            function onOutput_device_countChanged() {
+                                outputDeviceCombo.updateCurrentIndex()
+                            }
+                        }
+
+                        displayText: controller.output_device_description(currentIndex) || "Select output..."
+
+                        delegate: QQC2.ItemDelegate {
+                            required property int index
+                            width: outputDeviceCombo.width
+                            text: controller.output_device_description(index)
+                            highlighted: outputDeviceCombo.highlightedIndex === index
+                        }
+
+                        onActivated: (index) => {
+                            let deviceName = controller.output_device_name(index)
+                            if (deviceName && deviceName !== "") {
+                                controller.set_monitor_output_device(deviceName)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // Audio Info Section
         Rectangle {
             Layout.fillWidth: true
