@@ -81,6 +81,9 @@ async fn main() -> Result<()> {
     let mut routes = db.load_routes().context("Failed to load routes")?;
     info!(count = routes.len(), "Loaded routing rules");
 
+    // Track active app routes
+    let mut active_apps: Vec<undertone_core::routing::AppRoute> = vec![];
+
     // Initialize PipeWire graph manager
     let graph = Arc::new(GraphManager::new());
 
@@ -355,6 +358,11 @@ async fn main() -> Result<()> {
                             "Routing new app to channel"
                         );
 
+                        // Check if this is a persistent (saved) route
+                        let is_persistent = routes.iter().any(|r| {
+                            r.matches(&name) || binary_name.as_ref().is_some_and(|b| r.matches(b))
+                        });
+
                         // Route the app to the target channel
                         match pw_runtime.route_app_to_channel(id, &target_channel) {
                             Ok(link_ids) => {
@@ -373,6 +381,16 @@ async fn main() -> Result<()> {
                             }
                         }
 
+                        // Track this app route
+                        active_apps.push(undertone_core::routing::AppRoute {
+                            app_id: id,
+                            app_name: name.clone(),
+                            binary_name: binary_name.clone(),
+                            pid,
+                            channel: target_channel.clone(),
+                            is_persistent,
+                        });
+
                         // Emit IPC event
                         let _ = event_tx.send(Event {
                             event: EventType::AppDiscovered,
@@ -389,6 +407,9 @@ async fn main() -> Result<()> {
 
                     GraphEvent::ClientDisappeared { id } => {
                         debug!(id, "Audio client disappeared");
+
+                        // Remove from active apps tracking
+                        active_apps.retain(|app| app.app_id != id);
 
                         // Emit IPC event
                         let _ = event_tx.send(Event {
@@ -410,7 +431,7 @@ async fn main() -> Result<()> {
                     device_connected,
                     device_serial: device_serial.clone(),
                     channels: channels.clone(),
-                    app_routes: vec![], // TODO: Track active app routes
+                    app_routes: active_apps.clone(),
                     mixer: Default::default(),
                     active_profile: active_profile.clone(),
                     profiles,
@@ -544,6 +565,12 @@ async fn main() -> Result<()> {
                                                 links_created = link_ids.len(),
                                                 "App re-routed successfully"
                                             );
+
+                                            // Update active_apps tracking
+                                            if let Some(app) = active_apps.iter_mut().find(|a| a.app_id == client.id) {
+                                                app.channel = channel.clone();
+                                                app.is_persistent = true;
+                                            }
                                         }
                                         Err(e) => {
                                             warn!(
