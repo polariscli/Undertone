@@ -49,14 +49,12 @@ pub fn handle_request(method: &Method, state: &StateSnapshot) -> HandleResult {
         }
 
         Method::GetProfiles => {
-            // TODO: Load profiles from database
-            HandleResult::ok(json!([{"name": "Default", "is_default": true}]))
+            HandleResult::ok(serde_json::to_value(&state.profiles).unwrap_or(json!([])))
         }
 
         Method::GetProfile { name } => {
-            // TODO: Load profile from database
-            if name == "Default" {
-                HandleResult::ok(json!({"name": "Default", "is_default": true}))
+            if let Some(profile) = state.profiles.iter().find(|p| &p.name == name) {
+                HandleResult::ok(serde_json::to_value(profile).unwrap_or(json!({})))
             } else {
                 HandleResult::err(ErrorInfo::new(404, format!("Profile not found: {name}")))
             }

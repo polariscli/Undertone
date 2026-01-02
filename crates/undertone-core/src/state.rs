@@ -5,6 +5,7 @@ use std::collections::HashMap;
 
 use crate::channel::ChannelState;
 use crate::mixer::MixerState;
+use crate::profile::ProfileSummary;
 use crate::routing::AppRoute;
 
 /// Current state of the daemon.
@@ -82,6 +83,8 @@ pub struct StateSnapshot {
     pub mixer: MixerState,
     /// Active profile name
     pub active_profile: String,
+    /// Available profiles
+    pub profiles: Vec<ProfileSummary>,
     /// PipeWire node IDs we've created
     pub created_nodes: HashMap<String, u32>,
     /// PipeWire link IDs we've created
@@ -98,6 +101,11 @@ impl Default for StateSnapshot {
             app_routes: Vec::new(),
             mixer: MixerState::default(),
             active_profile: "Default".to_string(),
+            profiles: vec![ProfileSummary {
+                name: "Default".to_string(),
+                is_default: true,
+                description: Some("Default mixer configuration".to_string()),
+            }],
             created_nodes: HashMap::new(),
             created_links: HashMap::new(),
         }

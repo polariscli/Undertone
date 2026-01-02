@@ -206,11 +206,13 @@ async fn main() -> Result<()> {
 
     // Build initial state snapshot
     let mut state = DaemonState::Running;
+    let mut active_profile = String::from("Default");
 
     // Load default profile on startup (apply channel states to PipeWire)
     if let Ok(Some(default_profile_name)) = db.get_default_profile() {
         if let Ok(Some(profile)) = db.load_profile(&default_profile_name) {
             info!(name = %default_profile_name, "Loading default profile");
+            active_profile = default_profile_name.clone();
             for profile_ch in &profile.channels {
                 if let Some(ch) = channels.iter_mut().find(|c| c.config.name == profile_ch.name) {
                     ch.stream_volume = profile_ch.stream_volume;
@@ -402,6 +404,7 @@ async fn main() -> Result<()> {
                 debug!(client_id, request_id = request.id, "Handling IPC request");
 
                 // Build current state snapshot
+                let profiles = db.list_profiles().unwrap_or_default();
                 let snapshot = StateSnapshot {
                     state: state.clone(),
                     device_connected,
@@ -409,7 +412,8 @@ async fn main() -> Result<()> {
                     channels: channels.clone(),
                     app_routes: vec![], // TODO: Track active app routes
                     mixer: Default::default(),
-                    active_profile: "Default".to_string(),
+                    active_profile: active_profile.clone(),
+                    profiles,
                     created_nodes: graph.get_created_nodes(),
                     created_links: graph.get_created_links(),
                 };
@@ -627,6 +631,9 @@ async fn main() -> Result<()> {
 
                                     // Replace routes
                                     routes = profile.routes;
+
+                                    // Update active profile name
+                                    active_profile = name.clone();
 
                                     info!(name = %name, "Profile loaded and applied");
                                 }

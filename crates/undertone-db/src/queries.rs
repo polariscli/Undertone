@@ -4,22 +4,11 @@ use rusqlite::params;
 use undertone_core::{
     channel::{ChannelConfig, ChannelState},
     mixer::MixerState,
-    profile::{Profile, ProfileChannel},
+    profile::{Profile, ProfileChannel, ProfileSummary},
     routing::{PatternType, RouteRule},
 };
 
 use crate::{Database, DbResult};
-
-/// Summary of a profile for listing.
-#[derive(Debug, Clone)]
-pub struct ProfileSummary {
-    /// Profile name
-    pub name: String,
-    /// Whether this is the default profile
-    pub is_default: bool,
-    /// Optional description
-    pub description: Option<String>,
-}
 
 impl Database {
     /// Load all channels with their current state.

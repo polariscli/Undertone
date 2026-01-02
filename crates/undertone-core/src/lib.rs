@@ -15,6 +15,6 @@ pub use channel::{Channel, ChannelConfig, ChannelState};
 pub use command::Command;
 pub use error::{Error, Result};
 pub use mixer::{MixType, MixerState};
-pub use profile::Profile;
+pub use profile::{Profile, ProfileSummary};
 pub use routing::{AppRoute, RouteRule};
 pub use state::{DaemonEvent, DaemonState};

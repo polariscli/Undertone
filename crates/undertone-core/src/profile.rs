@@ -6,6 +6,17 @@ use crate::channel::ChannelState;
 use crate::mixer::MixerState;
 use crate::routing::RouteRule;
 
+/// Summary of a profile for listing.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct ProfileSummary {
+    /// Profile name
+    pub name: String,
+    /// Whether this is the default profile
+    pub is_default: bool,
+    /// Optional description
+    pub description: Option<String>,
+}
+
 /// A saved mixer profile.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Profile {
