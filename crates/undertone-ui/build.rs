@@ -18,7 +18,7 @@ fn main() {
         .qt_module("Quick")
         .qt_module("QuickControls2")
         .qml_module(QmlModule {
-            uri: "com.undertone",
+            uri: "org.afterlike.undertone",
             rust_files: &["src/bridge.rs"],
             qml_files: &[
                 "qml/main.qml",

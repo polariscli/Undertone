@@ -1,6 +1,6 @@
 [Unit]
 Description=Undertone Audio Control Daemon
-Documentation=https://github.com/undertone-audio/undertone
+Documentation=https://github.com/polariscli/Undertone
 After=pipewire.service
 Wants=pipewire.service
 

@@ -16,7 +16,7 @@ edition = "2024"
 rust-version = "1.92"
 authors = ["Undertone Contributors"]
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/undertone-audio/undertone"
+repository = "https://github.com/polariscli/Undertone"
 description = "Linux-native Elgato Wave:3 audio control application"
 
 [workspace.dependencies]
