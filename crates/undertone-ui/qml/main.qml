@@ -62,11 +62,22 @@ QQC2.ApplicationWindow {
                     width: 8
                     height: 8
                     radius: 4
-                    color: controller.connected ? Kirigami.Theme.positiveTextColor : Kirigami.Theme.negativeTextColor
+                    color: {
+                        if (!controller.connected) return Kirigami.Theme.negativeTextColor
+                        if (controller.device_connected) return Kirigami.Theme.positiveTextColor
+                        return Kirigami.Theme.neutralTextColor
+                    }
                 }
 
                 QQC2.Label {
-                    text: controller.connected ? (controller.device_serial || "Connected") : "Disconnected"
+                    text: {
+                        if (!controller.connected) return "Daemon offline"
+                        if (!controller.device_connected) return "No device"
+                        // Show serial if available, otherwise just "Wave:3"
+                        let serial = controller.device_serial
+                        if (serial && serial !== "" && serial !== "unknown") return serial
+                        return "Wave:3"
+                    }
                     font.pixelSize: 12
                     color: Kirigami.Theme.disabledTextColor
                 }
@@ -74,49 +85,61 @@ QQC2.ApplicationWindow {
 
             Item { Layout.fillWidth: true }
 
-            // Mix mode toggle
-            RowLayout {
-                spacing: 4
+            // Mix mode toggle - segmented control style
+            Rectangle {
+                Layout.preferredHeight: 32
+                implicitWidth: mixModeRow.implicitWidth + 4
+                color: Kirigami.Theme.alternateBackgroundColor
+                radius: 6
 
-                QQC2.Button {
-                    text: "Stream"
-                    flat: true
-                    checked: controller.mix_mode === 0
-                    checkable: true
-                    font.pixelSize: 12
-                    onClicked: controller.change_mix_mode(0)
+                RowLayout {
+                    id: mixModeRow
+                    anchors.fill: parent
+                    anchors.margins: 2
+                    spacing: 2
 
-                    background: Rectangle {
-                        color: parent.checked ? Kirigami.Theme.highlightColor : "transparent"
+                    Rectangle {
+                        Layout.fillHeight: true
+                        Layout.preferredWidth: streamLabel.implicitWidth + 24
+                        color: controller.mix_mode === 0 ? Kirigami.Theme.backgroundColor : "transparent"
                         radius: 4
+
+                        QQC2.Label {
+                            id: streamLabel
+                            anchors.centerIn: parent
+                            text: "Stream"
+                            font.pixelSize: 12
+                            font.bold: controller.mix_mode === 0
+                            color: controller.mix_mode === 0 ? Kirigami.Theme.textColor : Kirigami.Theme.disabledTextColor
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: controller.change_mix_mode(0)
+                        }
                     }
 
-                    contentItem: Text {
-                        text: parent.text
-                        color: parent.checked ? Kirigami.Theme.highlightedTextColor : Kirigami.Theme.disabledTextColor
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                    }
-                }
-
-                QQC2.Button {
-                    text: "Monitor"
-                    flat: true
-                    checked: controller.mix_mode === 1
-                    checkable: true
-                    font.pixelSize: 12
-                    onClicked: controller.change_mix_mode(1)
-
-                    background: Rectangle {
-                        color: parent.checked ? Kirigami.Theme.highlightColor : "transparent"
+                    Rectangle {
+                        Layout.fillHeight: true
+                        Layout.preferredWidth: monitorLabel.implicitWidth + 24
+                        color: controller.mix_mode === 1 ? Kirigami.Theme.backgroundColor : "transparent"
                         radius: 4
-                    }
 
-                    contentItem: Text {
-                        text: parent.text
-                        color: parent.checked ? Kirigami.Theme.highlightedTextColor : Kirigami.Theme.disabledTextColor
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
+                        QQC2.Label {
+                            id: monitorLabel
+                            anchors.centerIn: parent
+                            text: "Monitor"
+                            font.pixelSize: 12
+                            font.bold: controller.mix_mode === 1
+                            color: controller.mix_mode === 1 ? Kirigami.Theme.textColor : Kirigami.Theme.disabledTextColor
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: controller.change_mix_mode(1)
+                        }
                     }
                 }
             }
