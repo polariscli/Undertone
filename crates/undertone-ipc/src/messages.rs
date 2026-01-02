@@ -67,6 +67,12 @@ pub enum Method {
     /// Set mute state for a channel in a specific mix
     SetChannelMute { channel: String, mix: MixType, muted: bool },
 
+    // Master volume control
+    /// Set master volume for a mix (0.0 - 1.0)
+    SetMasterVolume { mix: MixType, volume: f32 },
+    /// Set master mute state for a mix
+    SetMasterMute { mix: MixType, muted: bool },
+
     // App routing
     /// Route an app to a channel
     SetAppRoute { app_pattern: String, channel: String },

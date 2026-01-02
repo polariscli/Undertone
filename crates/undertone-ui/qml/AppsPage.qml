@@ -161,29 +161,11 @@ Rectangle {
                             model: controller.available_channels().split(",")
                             currentIndex: model.indexOf(appChannel)
 
+                            // Use displayText for proper KDE style compatibility
+                            displayText: appsPage.getChannelDisplayName(currentText)
+
                             onActivated: (idx) => {
                                 controller.set_app_channel(appBinary || appName, model[idx])
-                            }
-
-                            // Custom content to show channel color indicator
-                            contentItem: RowLayout {
-                                spacing: 8
-
-                                Rectangle {
-                                    Layout.leftMargin: 8
-                                    width: 8
-                                    height: 8
-                                    radius: 4
-                                    color: appsPage.getChannelColor(channelCombo.currentText)
-                                }
-
-                                Text {
-                                    text: appsPage.getChannelDisplayName(channelCombo.currentText)
-                                    color: Kirigami.Theme.textColor
-                                    verticalAlignment: Text.AlignVCenter
-                                    elide: Text.ElideRight
-                                    Layout.fillWidth: true
-                                }
                             }
 
                             delegate: QQC2.ItemDelegate {
@@ -192,21 +174,7 @@ Rectangle {
                                 required property string modelData
                                 required property int index
 
-                                contentItem: RowLayout {
-                                    Rectangle {
-                                        Layout.leftMargin: 8
-                                        width: 8
-                                        height: 8
-                                        radius: 4
-                                        color: appsPage.getChannelColor(modelData)
-                                    }
-                                    Text {
-                                        text: appsPage.getChannelDisplayName(modelData)
-                                        color: Kirigami.Theme.textColor
-                                        verticalAlignment: Text.AlignVCenter
-                                        Layout.fillWidth: true
-                                    }
-                                }
+                                text: appsPage.getChannelDisplayName(modelData)
                             }
                         }
                     }

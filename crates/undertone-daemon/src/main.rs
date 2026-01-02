@@ -210,6 +210,7 @@ async fn main() -> Result<()> {
     // Build initial state snapshot
     let mut state = DaemonState::Running;
     let mut active_profile = String::from("Default");
+    let mut mixer = undertone_core::mixer::MixerState::default();
 
     // Load default profile on startup (apply channel states to PipeWire)
     if let Ok(Some(default_profile_name)) = db.get_default_profile() {
@@ -432,7 +433,7 @@ async fn main() -> Result<()> {
                     device_serial: device_serial.clone(),
                     channels: channels.clone(),
                     app_routes: active_apps.clone(),
-                    mixer: Default::default(),
+                    mixer: mixer.clone(),
                     active_profile: active_profile.clone(),
                     profiles,
                     created_nodes: graph.get_created_nodes(),
@@ -522,6 +523,54 @@ async fn main() -> Result<()> {
                             }
                         }
 
+                        Command::SetMasterVolume { mix, volume } => {
+                            // Update mixer state
+                            match mix {
+                                MixType::Stream => mixer.stream_master_volume = volume,
+                                MixType::Monitor => mixer.monitor_master_volume = volume,
+                            }
+                            info!(?mix, volume, "Master volume updated");
+
+                            // Apply to the mix node in PipeWire
+                            let mix_node_name = match mix {
+                                MixType::Stream => "ut-stream-mix",
+                                MixType::Monitor => "ut-monitor-mix",
+                            };
+                            if let Some(node_id) = graph.get_created_node_id(mix_node_name) {
+                                if let Err(e) = pw_runtime.set_node_volume(node_id, volume) {
+                                    error!(error = %e, node = %mix_node_name, "Failed to set master volume");
+                                } else {
+                                    debug!(node = %mix_node_name, volume, "Master volume applied to PipeWire");
+                                }
+                            } else {
+                                warn!(node = %mix_node_name, "Mix node not found for master volume");
+                            }
+                        }
+
+                        Command::SetMasterMute { mix, muted } => {
+                            // Update mixer state
+                            match mix {
+                                MixType::Stream => mixer.stream_master_muted = muted,
+                                MixType::Monitor => mixer.monitor_master_muted = muted,
+                            }
+                            info!(?mix, muted, "Master mute updated");
+
+                            // Apply to the mix node in PipeWire
+                            let mix_node_name = match mix {
+                                MixType::Stream => "ut-stream-mix",
+                                MixType::Monitor => "ut-monitor-mix",
+                            };
+                            if let Some(node_id) = graph.get_created_node_id(mix_node_name) {
+                                if let Err(e) = pw_runtime.set_node_mute(node_id, muted) {
+                                    error!(error = %e, node = %mix_node_name, "Failed to set master mute");
+                                } else {
+                                    debug!(node = %mix_node_name, muted, "Master mute applied to PipeWire");
+                                }
+                            } else {
+                                warn!(node = %mix_node_name, "Mix node not found for master mute");
+                            }
+                        }
+
                         Command::SetAppRoute { app_pattern, channel } => {
                             use undertone_core::routing::{PatternType, RouteRule};
 
@@ -596,7 +645,6 @@ async fn main() -> Result<()> {
 
                         Command::SaveProfile { name } => {
                             use undertone_core::profile::{Profile, ProfileChannel};
-                            use undertone_core::mixer::MixerState;
 
                             // Build profile from current state
                             let profile_channels: Vec<ProfileChannel> = channels
@@ -610,7 +658,7 @@ async fn main() -> Result<()> {
                                 is_default: name == "Default",
                                 channels: profile_channels,
                                 routes: routes.clone(),
-                                mixer: MixerState::default(), // TODO: Track mixer state
+                                mixer: mixer.clone(),
                             };
 
                             match db.save_profile(&profile) {
@@ -658,6 +706,24 @@ async fn main() -> Result<()> {
 
                                     // Replace routes
                                     routes = profile.routes;
+
+                                    // Apply mixer state (master volumes)
+                                    mixer = profile.mixer.clone();
+
+                                    // Apply master volumes to PipeWire mix nodes
+                                    for (mix_type, volume, muted) in [
+                                        (MixType::Stream, mixer.stream_master_volume, mixer.stream_master_muted),
+                                        (MixType::Monitor, mixer.monitor_master_volume, mixer.monitor_master_muted),
+                                    ] {
+                                        let mix_node_name = match mix_type {
+                                            MixType::Stream => "ut-stream-mix",
+                                            MixType::Monitor => "ut-monitor-mix",
+                                        };
+                                        if let Some(node_id) = graph.get_created_node_id(mix_node_name) {
+                                            let _ = pw_runtime.set_node_volume(node_id, volume);
+                                            let _ = pw_runtime.set_node_mute(node_id, muted);
+                                        }
+                                    }
 
                                     // Update active profile name
                                     active_profile = name.clone();

@@ -107,6 +107,8 @@ mod ffi {
         #[qproperty(bool, mic_muted)]
         #[qproperty(f32, mic_gain)]
         #[qproperty(i32, profile_count)]
+        #[qproperty(f32, master_volume)] // Master volume for current mix mode
+        #[qproperty(bool, master_muted)] // Master mute for current mix mode
         type UndertoneController = super::UndertoneControllerRust;
 
         /// Change the mix mode (0 = Stream, 1 = Monitor).
@@ -181,6 +183,16 @@ mod ffi {
         #[qinvokable]
         fn toggle_mic_mute(self: Pin<&mut UndertoneController>);
 
+        // Master volume methods
+
+        /// Set master volume (0.0 - 1.0).
+        #[qinvokable]
+        fn set_master_volume_value(self: Pin<&mut UndertoneController>, volume: f32);
+
+        /// Toggle master mute.
+        #[qinvokable]
+        fn toggle_master_mute(self: Pin<&mut UndertoneController>);
+
         // Profile methods
 
         /// Get profile name by index.
@@ -226,6 +238,8 @@ pub struct UndertoneControllerRust {
     mic_muted: bool,
     mic_gain: f32,
     profile_count: i32,
+    master_volume: f32,
+    master_muted: bool,
 }
 
 impl Default for UndertoneControllerRust {
@@ -241,6 +255,8 @@ impl Default for UndertoneControllerRust {
             mic_muted: false,
             mic_gain: 0.75,
             profile_count: 1,
+            master_volume: 1.0,
+            master_muted: false,
         }
     }
 }
@@ -250,6 +266,8 @@ pub enum UiCommand {
     SetMixMode(MixType),
     SetVolume { channel: String, mix: MixType, volume: f32 },
     SetMute { channel: String, mix: MixType, muted: bool },
+    SetMasterVolume { mix: MixType, volume: f32 },
+    SetMasterMute { mix: MixType, muted: bool },
     SetAppChannel { app_pattern: String, channel: String },
     SetMicGain { gain: f32 },
     SetMicMute { muted: bool },
@@ -429,6 +447,24 @@ impl ffi::UndertoneController {
         send_command(UiCommand::SetMicMute { muted: new_muted });
     }
 
+    /// Set master volume.
+    fn set_master_volume_value(mut self: Pin<&mut Self>, volume: f32) {
+        let volume = volume.clamp(0.0, 1.0);
+        let mix = if self.mix_mode == 0 { MixType::Stream } else { MixType::Monitor };
+        debug!(?mix, volume, "Setting master volume");
+        self.as_mut().set_master_volume(volume);
+        send_command(UiCommand::SetMasterVolume { mix, volume });
+    }
+
+    /// Toggle master mute.
+    fn toggle_master_mute(mut self: Pin<&mut Self>) {
+        let new_muted = !self.master_muted;
+        let mix = if self.mix_mode == 0 { MixType::Stream } else { MixType::Monitor };
+        debug!(?mix, muted = new_muted, "Toggling master mute");
+        self.as_mut().set_master_muted(new_muted);
+        send_command(UiCommand::SetMasterMute { mix, muted: new_muted });
+    }
+
     /// Get profile name by index.
     fn profile_name(&self, index: i32) -> QString {
         if let Ok(cache) = get_ui_data().lock() {
@@ -510,6 +546,10 @@ impl ffi::UndertoneController {
                 device_connected,
                 device_serial,
                 active_profile,
+                stream_master_volume,
+                stream_master_muted,
+                monitor_master_volume,
+                monitor_master_muted,
             } => {
                 debug!(
                     channels = channels.len(),
@@ -530,6 +570,16 @@ impl ffi::UndertoneController {
                     }),
                 ));
                 self.as_mut().set_active_profile(QString::from(active_profile.as_str()));
+
+                // Set master volume based on current mix mode
+                let mix_mode = self.mix_mode;
+                if mix_mode == 0 {
+                    self.as_mut().set_master_volume(stream_master_volume);
+                    self.as_mut().set_master_muted(stream_master_muted);
+                } else {
+                    self.as_mut().set_master_volume(monitor_master_volume);
+                    self.as_mut().set_master_muted(monitor_master_muted);
+                }
 
                 // Update global cache for vector data
                 // IMPORTANT: Release the lock BEFORE calling Qt setters to avoid deadlock!

@@ -74,17 +74,43 @@ Rectangle {
                     color: Kirigami.Theme.textColor
                 }
 
-                Item { Layout.fillHeight: true }
-
-                // Master volume display (placeholder)
-                QQC2.Label {
+                // Master volume slider (vertical)
+                QQC2.Slider {
+                    id: masterSlider
+                    Layout.fillHeight: true
                     Layout.alignment: Qt.AlignHCenter
-                    text: "100%"
-                    font.pixelSize: 14
-                    color: Kirigami.Theme.highlightColor
+                    orientation: Qt.Vertical
+                    from: 0.0
+                    to: 1.0
+                    value: controller.master_volume
+                    opacity: controller.master_muted ? 0.5 : 1.0
+
+                    onMoved: {
+                        controller.set_master_volume_value(value)
+                    }
                 }
 
-                Item { Layout.fillHeight: true }
+                // Master volume percentage
+                QQC2.Label {
+                    Layout.alignment: Qt.AlignHCenter
+                    text: Math.round(controller.master_volume * 100) + "%"
+                    font.pixelSize: 14
+                    color: controller.master_muted ? Kirigami.Theme.disabledTextColor : Kirigami.Theme.highlightColor
+                }
+
+                // Master mute button
+                QQC2.Button {
+                    Layout.alignment: Qt.AlignHCenter
+                    Layout.preferredWidth: 40
+                    Layout.preferredHeight: 40
+                    flat: true
+                    icon.name: controller.master_muted ? "audio-volume-muted" : "audio-volume-high"
+                    icon.color: controller.master_muted ? Kirigami.Theme.negativeTextColor : Kirigami.Theme.textColor
+
+                    onClicked: {
+                        controller.toggle_master_mute()
+                    }
+                }
             }
         }
     }

@@ -12,6 +12,10 @@ pub enum Command {
     SetChannelVolume { channel: String, mix: MixType, volume: f32 },
     /// Set mute state for a channel in a specific mix
     SetChannelMute { channel: String, mix: MixType, muted: bool },
+    /// Set master volume for a mix
+    SetMasterVolume { mix: MixType, volume: f32 },
+    /// Set master mute for a mix
+    SetMasterMute { mix: MixType, muted: bool },
     /// Route an app to a channel
     SetAppRoute { app_pattern: String, channel: String },
     /// Remove an app route

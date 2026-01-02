@@ -33,6 +33,11 @@ pub enum IpcUpdate {
         device_connected: bool,
         device_serial: Option<String>,
         active_profile: String,
+        // Mixer master state
+        stream_master_volume: f32,
+        stream_master_muted: bool,
+        monitor_master_volume: f32,
+        monitor_master_muted: bool,
     },
     ChannelVolumeChanged {
         channel: String,
@@ -186,6 +191,8 @@ fn command_to_method(cmd: UiCommand) -> Option<Method> {
         UiCommand::SetMute { channel, mix, muted } => {
             Some(Method::SetChannelMute { channel, mix, muted })
         }
+        UiCommand::SetMasterVolume { mix, volume } => Some(Method::SetMasterVolume { mix, volume }),
+        UiCommand::SetMasterMute { mix, muted } => Some(Method::SetMasterMute { mix, muted }),
         UiCommand::SetAppChannel { app_pattern, channel } => {
             Some(Method::SetAppRoute { app_pattern, channel })
         }
@@ -333,6 +340,21 @@ fn parse_state_response(value: &serde_json::Value) -> Option<IpcUpdate> {
     let device_serial =
         value.get("device_serial").and_then(|v: &Value| v.as_str()).map(String::from);
 
+    // Parse mixer state
+    let mixer = value.get("mixer");
+    let stream_master_volume =
+        mixer.and_then(|m| m.get("stream_master_volume")).and_then(|v| v.as_f64()).unwrap_or(1.0)
+            as f32;
+    let stream_master_muted =
+        mixer.and_then(|m| m.get("stream_master_muted")).and_then(|v| v.as_bool()).unwrap_or(false);
+    let monitor_master_volume =
+        mixer.and_then(|m| m.get("monitor_master_volume")).and_then(|v| v.as_f64()).unwrap_or(1.0)
+            as f32;
+    let monitor_master_muted = mixer
+        .and_then(|m| m.get("monitor_master_muted"))
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+
     Some(IpcUpdate::StateUpdated {
         channels,
         apps,
@@ -340,5 +362,9 @@ fn parse_state_response(value: &serde_json::Value) -> Option<IpcUpdate> {
         device_connected,
         device_serial,
         active_profile,
+        stream_master_volume,
+        stream_master_muted,
+        monitor_master_volume,
+        monitor_master_muted,
     })
 }

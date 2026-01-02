@@ -285,7 +285,7 @@ Rectangle {
 
                     QQC2.Label {
                         Kirigami.FormData.label: "Sample Rate:"
-                        text: "48000 Hz"
+                        text: "48000 Hz (USB Audio)"
                     }
 
                     QQC2.Label {
@@ -294,18 +294,14 @@ Rectangle {
                     }
 
                     QQC2.Label {
-                        Kirigami.FormData.label: "Channels:"
-                        text: "Stereo"
+                        Kirigami.FormData.label: "Audio Channels:"
+                        text: "Stereo (2ch)"
                     }
 
                     QQC2.Label {
-                        Kirigami.FormData.label: "Buffer Size:"
-                        text: "256 samples"
-                    }
-
-                    QQC2.Label {
-                        Kirigami.FormData.label: "Latency:"
-                        text: "~5.3 ms"
+                        Kirigami.FormData.label: "Buffer/Latency:"
+                        text: "Managed by PipeWire"
+                        color: Kirigami.Theme.disabledTextColor
                     }
                 }
 
@@ -314,7 +310,7 @@ Rectangle {
                 // Footer note
                 QQC2.Label {
                     Layout.fillWidth: true
-                    text: "Hardware settings are applied via ALSA fallback. Full HID control is planned for a future release."
+                    text: "Audio routing managed by PipeWire. Mic gain controlled via ALSA. Buffer size configurable in PipeWire/WirePlumber settings."
                     font.pixelSize: 11
                     color: Kirigami.Theme.disabledTextColor
                     wrapMode: Text.WordWrap

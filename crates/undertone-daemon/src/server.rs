@@ -103,6 +103,23 @@ pub fn handle_request(method: &Method, state: &StateSnapshot) -> HandleResult {
             )
         }
 
+        Method::SetMasterVolume { mix, volume } => {
+            let volume = volume.clamp(0.0, 1.0);
+            debug!(?mix, volume, "Setting master volume");
+            HandleResult::ok_with_command(
+                json!({"success": true, "volume": volume}),
+                Command::SetMasterVolume { mix: *mix, volume },
+            )
+        }
+
+        Method::SetMasterMute { mix, muted } => {
+            debug!(?mix, muted, "Setting master mute");
+            HandleResult::ok_with_command(
+                json!({"success": true, "muted": muted}),
+                Command::SetMasterMute { mix: *mix, muted: *muted },
+            )
+        }
+
         Method::SetAppRoute { app_pattern, channel } => {
             // Validate channel exists
             if !state.channels.iter().any(|c| &c.config.name == channel) {
