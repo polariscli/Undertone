@@ -154,7 +154,7 @@ Rectangle {
                             }
                         }
 
-                        // Channel selector with custom popup to avoid Breeze Overlay issues
+                        // Channel selector
                         QQC2.ComboBox {
                             id: channelCombo
                             Layout.preferredWidth: 120
@@ -165,13 +165,7 @@ Rectangle {
                                 controller.set_app_channel(appBinary || appName, model[idx])
                             }
 
-                            background: Rectangle {
-                                color: Kirigami.Theme.alternateBackgroundColor
-                                radius: 4
-                                border.color: appsPage.getChannelColor(appChannel)
-                                border.width: 2
-                            }
-
+                            // Custom content to show channel color indicator
                             contentItem: RowLayout {
                                 spacing: 8
 
@@ -194,7 +188,6 @@ Rectangle {
 
                             delegate: QQC2.ItemDelegate {
                                 width: channelCombo.width
-                                height: 32
 
                                 required property string modelData
                                 required property int index
@@ -213,30 +206,6 @@ Rectangle {
                                         verticalAlignment: Text.AlignVCenter
                                         Layout.fillWidth: true
                                     }
-                                }
-
-                                background: Rectangle {
-                                    color: parent.highlighted ? appsPage.getChannelColor(modelData) : Kirigami.Theme.alternateBackgroundColor
-                                }
-                            }
-
-                            popup: QQC2.Popup {
-                                y: channelCombo.height
-                                width: channelCombo.width
-                                implicitHeight: contentItem.implicitHeight
-                                padding: 1
-
-                                contentItem: ListView {
-                                    clip: true
-                                    implicitHeight: contentHeight
-                                    model: channelCombo.popup.visible ? channelCombo.delegateModel : null
-                                    currentIndex: channelCombo.highlightedIndex
-                                }
-
-                                background: Rectangle {
-                                    color: Kirigami.Theme.alternateBackgroundColor
-                                    border.color: Kirigami.Theme.backgroundColor
-                                    radius: 4
                                 }
                             }
                         }

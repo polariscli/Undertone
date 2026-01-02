@@ -46,7 +46,8 @@ rusb = "0.9"
 
 # Qt UI (cxx-qt)
 cxx-qt = "0.7"
-cxx-qt-lib = { version = "0.7", features = ["qt_gui", "qt_qml"] }
+cxx-qt-lib = { version = "0.7", features = ["qt_gui", "qt_qml", "qt_quickcontrols"] }
+cxx-qt-lib-extras = "0.7"
 cxx = "1.0"
 
 # Logging

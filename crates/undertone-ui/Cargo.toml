@@ -16,6 +16,7 @@ undertone-core = { path = "../undertone-core" }
 
 cxx-qt.workspace = true
 cxx-qt-lib.workspace = true
+cxx-qt-lib-extras.workspace = true
 cxx.workspace = true
 serde_json.workspace = true
 tokio = { workspace = true, features = ["rt", "sync"] }

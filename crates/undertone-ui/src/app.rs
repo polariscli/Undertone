@@ -2,7 +2,8 @@
 
 use std::sync::Arc;
 
-use cxx_qt_lib::{QGuiApplication, QQmlApplicationEngine, QString, QUrl};
+use cxx_qt_lib::{QQmlApplicationEngine, QQuickStyle, QString, QUrl};
+use cxx_qt_lib_extras::QApplication;
 use tracing::info;
 
 use crate::bridge::init_ipc;
@@ -34,10 +35,18 @@ impl Application {
         let _command_tx = init_ipc(Arc::clone(&self.state));
         info!("IPC handler started");
 
-        // Initialize Qt application
-        let mut app = QGuiApplication::new();
+        // Initialize Qt application (QApplication for full KDE/widget support)
+        let mut app = QApplication::new();
 
-        // Create QML engine
+        // Set Qt Quick Controls style BEFORE creating engine (critical timing!)
+        // This uses org.kde.desktop style which properly handles Overlay
+        // Only set if not already overridden by environment variable
+        if std::env::var("QT_QUICK_CONTROLS_STYLE").is_err() {
+            QQuickStyle::set_style(&QString::from("org.kde.desktop"));
+            info!("Set Qt Quick Controls style to org.kde.desktop");
+        }
+
+        // Create QML engine AFTER setting style
         let mut engine = QQmlApplicationEngine::new();
 
         // Load main QML file from the compiled QRC

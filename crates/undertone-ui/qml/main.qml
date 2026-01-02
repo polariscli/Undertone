@@ -141,60 +141,10 @@ Kirigami.ApplicationWindow {
                         controller.load_profile(controller.profile_name(index))
                     }
 
-                    background: Rectangle {
-                        color: Kirigami.Theme.alternateBackgroundColor
-                        radius: 4
-                    }
-
-                    contentItem: Text {
-                        text: profileSelector.displayText
-                        color: Kirigami.Theme.textColor
-                        verticalAlignment: Text.AlignVCenter
-                        leftPadding: 8
-                    }
-
                     delegate: QQC2.ItemDelegate {
                         required property int index
                         width: profileSelector.width
-                        height: 28
-
-                        contentItem: RowLayout {
-                            Text {
-                                text: controller.profile_name(index)
-                                color: Kirigami.Theme.textColor
-                                font.pixelSize: 12
-                                Layout.fillWidth: true
-                            }
-                            Text {
-                                text: controller.profile_is_default(index) ? "*" : ""
-                                color: Kirigami.Theme.highlightColor
-                                font.pixelSize: 12
-                            }
-                        }
-
-                        background: Rectangle {
-                            color: parent.highlighted ? Kirigami.Theme.highlightColor : Kirigami.Theme.alternateBackgroundColor
-                        }
-                    }
-
-                    popup: QQC2.Popup {
-                        y: profileSelector.height
-                        width: profileSelector.width
-                        implicitHeight: Math.min(contentItem.implicitHeight, 200)
-                        padding: 1
-
-                        contentItem: ListView {
-                            clip: true
-                            implicitHeight: contentHeight
-                            model: profileSelector.popup.visible ? profileSelector.delegateModel : null
-                            currentIndex: profileSelector.highlightedIndex
-                        }
-
-                        background: Rectangle {
-                            color: Kirigami.Theme.alternateBackgroundColor
-                            border.color: Kirigami.Theme.backgroundColor
-                            radius: 4
-                        }
+                        text: controller.profile_name(index) + (controller.profile_is_default(index) ? " *" : "")
                     }
                 }
 
