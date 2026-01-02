@@ -1,10 +1,10 @@
 import QtQuick
-import QtQuick.Controls
+import QtQuick.Controls as QQC2
 import QtQuick.Layouts
-import QtQuick.Dialogs
+import org.kde.kirigami as Kirigami
 import com.undertone
 
-ApplicationWindow {
+Kirigami.ApplicationWindow {
     id: window
     visible: true
     width: 800
@@ -12,7 +12,6 @@ ApplicationWindow {
     minimumWidth: 600
     minimumHeight: 400
     title: "Undertone"
-    color: "#1a1a2e"
 
     // Controller from Rust
     UndertoneController {
@@ -34,10 +33,12 @@ ApplicationWindow {
     }
 
     // Header bar
-    header: ToolBar {
+    header: QQC2.ToolBar {
         height: 48
+        Kirigami.Theme.colorSet: Kirigami.Theme.Header
+
         background: Rectangle {
-            color: "#16213e"
+            color: Kirigami.Theme.backgroundColor
         }
 
         RowLayout {
@@ -50,11 +51,11 @@ ApplicationWindow {
             RowLayout {
                 spacing: 8
 
-                Label {
+                QQC2.Label {
                     text: "Undertone"
                     font.pixelSize: 18
                     font.bold: true
-                    color: "#e94560"
+                    color: Kirigami.Theme.highlightColor
                 }
 
                 // Connection indicator
@@ -62,13 +63,13 @@ ApplicationWindow {
                     width: 8
                     height: 8
                     radius: 4
-                    color: controller.connected ? "#4ade80" : "#ef4444"
+                    color: controller.connected ? Kirigami.Theme.positiveTextColor : Kirigami.Theme.negativeTextColor
                 }
 
-                Label {
+                QQC2.Label {
                     text: controller.connected ? (controller.device_serial || "Connected") : "Disconnected"
                     font.pixelSize: 12
-                    color: "#94a3b8"
+                    color: Kirigami.Theme.disabledTextColor
                 }
             }
 
@@ -78,7 +79,7 @@ ApplicationWindow {
             RowLayout {
                 spacing: 4
 
-                Button {
+                QQC2.Button {
                     text: "Stream"
                     flat: true
                     checked: controller.mix_mode === 0
@@ -87,19 +88,19 @@ ApplicationWindow {
                     onClicked: controller.change_mix_mode(0)
 
                     background: Rectangle {
-                        color: parent.checked ? "#e94560" : "transparent"
+                        color: parent.checked ? Kirigami.Theme.highlightColor : "transparent"
                         radius: 4
                     }
 
                     contentItem: Text {
                         text: parent.text
-                        color: parent.checked ? "#ffffff" : "#94a3b8"
+                        color: parent.checked ? Kirigami.Theme.highlightedTextColor : Kirigami.Theme.disabledTextColor
                         horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
                     }
                 }
 
-                Button {
+                QQC2.Button {
                     text: "Monitor"
                     flat: true
                     checked: controller.mix_mode === 1
@@ -108,13 +109,13 @@ ApplicationWindow {
                     onClicked: controller.change_mix_mode(1)
 
                     background: Rectangle {
-                        color: parent.checked ? "#e94560" : "transparent"
+                        color: parent.checked ? Kirigami.Theme.highlightColor : "transparent"
                         radius: 4
                     }
 
                     contentItem: Text {
                         text: parent.text
-                        color: parent.checked ? "#ffffff" : "#94a3b8"
+                        color: parent.checked ? Kirigami.Theme.highlightedTextColor : Kirigami.Theme.disabledTextColor
                         horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
                     }
@@ -125,7 +126,7 @@ ApplicationWindow {
             RowLayout {
                 spacing: 4
 
-                ComboBox {
+                QQC2.ComboBox {
                     id: profileSelector
                     Layout.preferredWidth: 120
                     model: controller.profileCount
@@ -141,18 +142,18 @@ ApplicationWindow {
                     }
 
                     background: Rectangle {
-                        color: "#0f3460"
+                        color: Kirigami.Theme.alternateBackgroundColor
                         radius: 4
                     }
 
                     contentItem: Text {
                         text: profileSelector.displayText
-                        color: "#ffffff"
+                        color: Kirigami.Theme.textColor
                         verticalAlignment: Text.AlignVCenter
                         leftPadding: 8
                     }
 
-                    delegate: ItemDelegate {
+                    delegate: QQC2.ItemDelegate {
                         required property int index
                         width: profileSelector.width
                         height: 28
@@ -160,23 +161,23 @@ ApplicationWindow {
                         contentItem: RowLayout {
                             Text {
                                 text: controller.profile_name(index)
-                                color: "#ffffff"
+                                color: Kirigami.Theme.textColor
                                 font.pixelSize: 12
                                 Layout.fillWidth: true
                             }
                             Text {
                                 text: controller.profile_is_default(index) ? "*" : ""
-                                color: "#e94560"
+                                color: Kirigami.Theme.highlightColor
                                 font.pixelSize: 12
                             }
                         }
 
                         background: Rectangle {
-                            color: parent.highlighted ? "#e94560" : "#16213e"
+                            color: parent.highlighted ? Kirigami.Theme.highlightColor : Kirigami.Theme.alternateBackgroundColor
                         }
                     }
 
-                    popup: Popup {
+                    popup: QQC2.Popup {
                         y: profileSelector.height
                         width: profileSelector.width
                         implicitHeight: Math.min(contentItem.implicitHeight, 200)
@@ -190,15 +191,15 @@ ApplicationWindow {
                         }
 
                         background: Rectangle {
-                            color: "#16213e"
-                            border.color: "#0f3460"
+                            color: Kirigami.Theme.alternateBackgroundColor
+                            border.color: Kirigami.Theme.backgroundColor
                             radius: 4
                         }
                     }
                 }
 
                 // Save profile button
-                Button {
+                QQC2.Button {
                     Layout.preferredWidth: 32
                     Layout.preferredHeight: 28
                     flat: true
@@ -209,80 +210,80 @@ ApplicationWindow {
                     onClicked: saveProfileDialog.open()
 
                     background: Rectangle {
-                        color: parent.hovered ? "#e94560" : "#0f3460"
+                        color: parent.hovered ? Kirigami.Theme.highlightColor : Kirigami.Theme.alternateBackgroundColor
                         radius: 4
                     }
 
                     contentItem: Text {
                         text: parent.text
-                        color: "#ffffff"
+                        color: Kirigami.Theme.textColor
                         horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
                     }
 
-                    ToolTip.visible: hovered
-                    ToolTip.text: "Save current settings as profile"
+                    QQC2.ToolTip.visible: hovered
+                    QQC2.ToolTip.text: "Save current settings as profile"
                 }
             }
         }
     }
 
     // Tab bar for navigation
-    TabBar {
+    QQC2.TabBar {
         id: tabBar
         width: parent.width
         anchors.top: parent.top
 
         background: Rectangle {
-            color: "#16213e"
+            color: Kirigami.Theme.alternateBackgroundColor
         }
 
-        TabButton {
+        QQC2.TabButton {
             text: "Mixer"
             width: implicitWidth
             font.pixelSize: 14
 
             background: Rectangle {
-                color: tabBar.currentIndex === 0 ? "#1a1a2e" : "transparent"
+                color: tabBar.currentIndex === 0 ? Kirigami.Theme.backgroundColor : "transparent"
             }
 
             contentItem: Text {
                 text: parent.text
-                color: tabBar.currentIndex === 0 ? "#e94560" : "#94a3b8"
+                color: tabBar.currentIndex === 0 ? Kirigami.Theme.highlightColor : Kirigami.Theme.disabledTextColor
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
             }
         }
 
-        TabButton {
+        QQC2.TabButton {
             text: "Apps"
             width: implicitWidth
             font.pixelSize: 14
 
             background: Rectangle {
-                color: tabBar.currentIndex === 1 ? "#1a1a2e" : "transparent"
+                color: tabBar.currentIndex === 1 ? Kirigami.Theme.backgroundColor : "transparent"
             }
 
             contentItem: Text {
                 text: parent.text
-                color: tabBar.currentIndex === 1 ? "#e94560" : "#94a3b8"
+                color: tabBar.currentIndex === 1 ? Kirigami.Theme.highlightColor : Kirigami.Theme.disabledTextColor
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
             }
         }
 
-        TabButton {
+        QQC2.TabButton {
             text: "Device"
             width: implicitWidth
             font.pixelSize: 14
 
             background: Rectangle {
-                color: tabBar.currentIndex === 2 ? "#1a1a2e" : "transparent"
+                color: tabBar.currentIndex === 2 ? Kirigami.Theme.backgroundColor : "transparent"
             }
 
             contentItem: Text {
                 text: parent.text
-                color: tabBar.currentIndex === 2 ? "#e94560" : "#94a3b8"
+                color: tabBar.currentIndex === 2 ? Kirigami.Theme.highlightColor : Kirigami.Theme.disabledTextColor
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
             }
@@ -314,10 +315,12 @@ ApplicationWindow {
     }
 
     // Status bar
-    footer: ToolBar {
+    footer: QQC2.ToolBar {
         height: 24
+        Kirigami.Theme.colorSet: Kirigami.Theme.Header
+
         background: Rectangle {
-            color: "#16213e"
+            color: Kirigami.Theme.backgroundColor
         }
 
         RowLayout {
@@ -325,137 +328,54 @@ ApplicationWindow {
             anchors.leftMargin: 8
             anchors.rightMargin: 8
 
-            Label {
+            QQC2.Label {
                 text: controller.connected ? "Connected to daemon" : "Daemon not running"
                 font.pixelSize: 11
-                color: "#64748b"
+                color: Kirigami.Theme.disabledTextColor
             }
 
             Item { Layout.fillWidth: true }
 
-            Label {
+            QQC2.Label {
                 text: "Profile: " + controller.active_profile
                 font.pixelSize: 11
-                color: "#64748b"
+                color: Kirigami.Theme.disabledTextColor
             }
         }
     }
 
     // Save Profile Dialog
-    Dialog {
+    Kirigami.PromptDialog {
         id: saveProfileDialog
         title: "Save Profile"
-        modal: true
-        anchors.centerIn: parent
-        width: 320
-        height: 180
 
-        background: Rectangle {
-            color: "#16213e"
-            radius: 8
-            border.color: "#0f3460"
-            border.width: 1
+        QQC2.TextField {
+            id: profileNameField
+            Layout.fillWidth: true
+            placeholderText: "Enter profile name"
         }
 
-        header: Rectangle {
-            height: 40
-            color: "#0f3460"
-            radius: 8
+        standardButtons: Kirigami.Dialog.NoButton
 
-            Label {
-                anchors.centerIn: parent
-                text: "Save Profile"
-                font.pixelSize: 14
-                font.bold: true
-                color: "#e94560"
-            }
-
-            // Fix bottom corners
-            Rectangle {
-                anchors.bottom: parent.bottom
-                width: parent.width
-                height: 8
-                color: parent.color
-            }
-        }
-
-        contentItem: ColumnLayout {
-            spacing: 16
-
-            Label {
-                text: "Enter a name for this profile:"
-                font.pixelSize: 12
-                color: "#94a3b8"
-            }
-
-            TextField {
-                id: profileNameField
-                Layout.fillWidth: true
-                placeholderText: "Profile name"
-                font.pixelSize: 14
-
-                background: Rectangle {
-                    color: "#0f3460"
-                    radius: 4
-                    border.color: profileNameField.focus ? "#e94560" : "#16213e"
-                    border.width: 1
+        customFooterActions: [
+            Kirigami.Action {
+                text: "Cancel"
+                icon.name: "dialog-cancel"
+                onTriggered: {
+                    profileNameField.text = ""
+                    saveProfileDialog.close()
                 }
-
-                color: "#ffffff"
-                placeholderTextColor: "#64748b"
-            }
-
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: 8
-
-                Item { Layout.fillWidth: true }
-
-                Button {
-                    text: "Cancel"
-                    flat: true
-                    onClicked: {
-                        profileNameField.text = ""
-                        saveProfileDialog.close()
-                    }
-
-                    background: Rectangle {
-                        color: parent.hovered ? "#0f3460" : "transparent"
-                        radius: 4
-                    }
-
-                    contentItem: Text {
-                        text: parent.text
-                        color: "#94a3b8"
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                    }
-                }
-
-                Button {
-                    text: "Save"
-                    enabled: profileNameField.text.trim().length > 0
-
-                    onClicked: {
-                        controller.save_profile(profileNameField.text.trim())
-                        profileNameField.text = ""
-                        saveProfileDialog.close()
-                    }
-
-                    background: Rectangle {
-                        color: parent.enabled ? (parent.hovered ? "#f05575" : "#e94560") : "#64748b"
-                        radius: 4
-                    }
-
-                    contentItem: Text {
-                        text: parent.text
-                        color: "#ffffff"
-                        font.bold: true
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                    }
+            },
+            Kirigami.Action {
+                text: "Save"
+                icon.name: "document-save"
+                enabled: profileNameField.text.trim().length > 0
+                onTriggered: {
+                    controller.save_profile(profileNameField.text.trim())
+                    profileNameField.text = ""
+                    saveProfileDialog.close()
                 }
             }
-        }
+        ]
     }
 }

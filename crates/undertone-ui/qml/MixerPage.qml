@@ -1,12 +1,16 @@
 import QtQuick
-import QtQuick.Controls
+import QtQuick.Controls as QQC2
 import QtQuick.Layouts
+import org.kde.kirigami as Kirigami
 
 Rectangle {
     id: mixerPage
-    color: "#1a1a2e"
+    color: Kirigami.Theme.backgroundColor
 
     required property var controller
+
+    // Channel brand colors for visual differentiation (kept hardcoded per design)
+    readonly property var channelColors: ["#e94560", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6"]
 
     // Channel strip container
     RowLayout {
@@ -27,7 +31,7 @@ Rectangle {
                 muted: controller.channel_muted(index)
                 levelLeft: 0.0  // TODO: Get from controller
                 levelRight: 0.0
-                channelColor: getChannelColor(index)
+                channelColor: mixerPage.channelColors[index % mixerPage.channelColors.length]
 
                 onVolumeAdjusted: (newVolume) => {
                     controller.set_channel_volume(channelName, newVolume)
@@ -35,11 +39,6 @@ Rectangle {
 
                 onMuteToggled: {
                     controller.toggle_channel_mute(channelName)
-                }
-
-                function getChannelColor(idx) {
-                    const colors = ["#e94560", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6"]
-                    return colors[idx % colors.length]
                 }
             }
         }
@@ -51,7 +50,7 @@ Rectangle {
         Rectangle {
             Layout.fillHeight: true
             Layout.preferredWidth: 80
-            color: "#16213e"
+            color: Kirigami.Theme.alternateBackgroundColor
             radius: 8
 
             ColumnLayout {
@@ -59,18 +58,18 @@ Rectangle {
                 anchors.margins: 8
                 spacing: 8
 
-                Label {
+                QQC2.Label {
                     text: "Master"
                     font.pixelSize: 12
                     font.bold: true
-                    color: "#e94560"
+                    color: Kirigami.Theme.highlightColor
                     Layout.alignment: Qt.AlignHCenter
                 }
 
                 // Master volume slider (vertical)
                 // TODO: Master volume is not yet implemented in daemon.
                 // This slider is currently non-functional.
-                Slider {
+                QQC2.Slider {
                     id: masterSlider
                     orientation: Qt.Vertical
                     from: 0
@@ -86,14 +85,14 @@ Rectangle {
                         width: 4
                         height: masterSlider.availableHeight
                         radius: 2
-                        color: "#0f3460"
+                        color: Kirigami.Theme.backgroundColor
 
                         Rectangle {
                             width: parent.width
                             height: masterSlider.visualPosition * parent.height
                             y: parent.height - height
                             radius: 2
-                            color: "#e94560"
+                            color: Kirigami.Theme.highlightColor
                         }
                     }
 
@@ -103,21 +102,21 @@ Rectangle {
                         width: 16
                         height: 8
                         radius: 2
-                        color: masterSlider.pressed ? "#ffffff" : "#e94560"
+                        color: masterSlider.pressed ? Kirigami.Theme.textColor : Kirigami.Theme.highlightColor
                     }
                 }
 
                 // Volume value
-                Label {
+                QQC2.Label {
                     text: Math.round(masterSlider.value * 100) + "%"
                     font.pixelSize: 11
-                    color: "#94a3b8"
+                    color: Kirigami.Theme.disabledTextColor
                     Layout.alignment: Qt.AlignHCenter
                 }
 
                 // Master mute button
                 // TODO: Master mute is not yet implemented in daemon.
-                Button {
+                QQC2.Button {
                     Layout.preferredWidth: 48
                     Layout.preferredHeight: 32
                     Layout.alignment: Qt.AlignHCenter
@@ -127,13 +126,13 @@ Rectangle {
                     enabled: false  // Disabled until daemon support is added
 
                     background: Rectangle {
-                        color: enabled ? "#0f3460" : "#1a1a2e"
+                        color: enabled ? Kirigami.Theme.backgroundColor : Kirigami.Theme.alternateBackgroundColor
                         radius: 4
                     }
 
                     contentItem: Text {
                         text: parent.text
-                        color: enabled ? "#ffffff" : "#64748b"
+                        color: enabled ? Kirigami.Theme.textColor : Kirigami.Theme.disabledTextColor
                         horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
                     }
@@ -143,11 +142,11 @@ Rectangle {
     }
 
     // Empty state when no channels
-    Label {
+    Kirigami.PlaceholderMessage {
         anchors.centerIn: parent
         visible: controller.channel_count === 0
+        icon.name: "audio-volume-muted"
         text: "No channels available"
-        color: "#64748b"
-        font.pixelSize: 18
+        explanation: "Start the daemon to see audio channels"
     }
 }

@@ -1,14 +1,15 @@
 import QtQuick
-import QtQuick.Controls
+import QtQuick.Controls as QQC2
 import QtQuick.Layouts
+import org.kde.kirigami as Kirigami
 
 Rectangle {
     id: appsPage
-    color: "#1a1a2e"
+    color: Kirigami.Theme.backgroundColor
 
     required property var controller
 
-    // Channel colors for visual consistency
+    // Channel brand colors for visual differentiation (kept hardcoded per design)
     readonly property var channelColors: ({
         "system": "#e94560",
         "voice": "#f59e0b",
@@ -18,7 +19,7 @@ Rectangle {
     })
 
     function getChannelColor(channel) {
-        return channelColors[channel] || "#64748b"
+        return channelColors[channel] || Kirigami.Theme.disabledTextColor
     }
 
     function getChannelDisplayName(channel) {
@@ -42,36 +43,25 @@ Rectangle {
             Layout.fillWidth: true
             spacing: 16
 
-            Label {
+            QQC2.Label {
                 text: "Active Applications"
                 font.pixelSize: 18
                 font.bold: true
-                color: "#ffffff"
+                color: Kirigami.Theme.textColor
             }
 
             Item { Layout.fillWidth: true }
 
-            Button {
+            QQC2.Button {
                 text: "Refresh"
+                icon.name: "view-refresh"
                 flat: true
                 onClicked: controller.refresh()
-
-                background: Rectangle {
-                    color: parent.hovered ? "#0f3460" : "#16213e"
-                    radius: 4
-                }
-
-                contentItem: Text {
-                    text: parent.text
-                    color: "#94a3b8"
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                }
             }
         }
 
         // App list
-        ScrollView {
+        QQC2.ScrollView {
             Layout.fillWidth: true
             Layout.fillHeight: true
             clip: true
@@ -86,7 +76,7 @@ Rectangle {
 
                     width: appList.width
                     height: 64
-                    color: "#16213e"
+                    color: Kirigami.Theme.alternateBackgroundColor
                     radius: 8
 
                     property string appName: controller.app_name(index)
@@ -106,12 +96,12 @@ Rectangle {
                             radius: 8
                             color: appsPage.getChannelColor(appChannel)
 
-                            Label {
+                            QQC2.Label {
                                 anchors.centerIn: parent
                                 text: appName.charAt(0).toUpperCase()
                                 font.pixelSize: 18
                                 font.bold: true
-                                color: "#ffffff"
+                                color: Kirigami.Theme.textColor
                             }
                         }
 
@@ -120,19 +110,19 @@ Rectangle {
                             Layout.fillWidth: true
                             spacing: 2
 
-                            Label {
+                            QQC2.Label {
                                 text: appName
                                 font.pixelSize: 14
                                 font.bold: true
-                                color: "#ffffff"
+                                color: Kirigami.Theme.textColor
                                 elide: Text.ElideRight
                                 Layout.fillWidth: true
                             }
 
-                            Label {
+                            QQC2.Label {
                                 text: appBinary || "Unknown binary"
                                 font.pixelSize: 11
-                                color: "#64748b"
+                                color: Kirigami.Theme.disabledTextColor
                                 elide: Text.ElideRight
                                 Layout.fillWidth: true
                             }
@@ -144,18 +134,18 @@ Rectangle {
                             Layout.preferredWidth: 20
                             Layout.preferredHeight: 20
                             radius: 10
-                            color: "#0f3460"
+                            color: Kirigami.Theme.backgroundColor
 
-                            Label {
+                            QQC2.Label {
                                 anchors.centerIn: parent
                                 text: "P"
                                 font.pixelSize: 10
                                 font.bold: true
-                                color: "#10b981"
+                                color: Kirigami.Theme.positiveTextColor
                             }
 
-                            ToolTip.visible: persistentMouse.containsMouse
-                            ToolTip.text: "Persistent route"
+                            QQC2.ToolTip.visible: persistentMouse.containsMouse
+                            QQC2.ToolTip.text: "Persistent route"
 
                             MouseArea {
                                 id: persistentMouse
@@ -164,8 +154,8 @@ Rectangle {
                             }
                         }
 
-                        // Channel selector
-                        ComboBox {
+                        // Channel selector with custom popup to avoid Breeze Overlay issues
+                        QQC2.ComboBox {
                             id: channelCombo
                             Layout.preferredWidth: 120
                             model: controller.available_channels().split(",")
@@ -176,39 +166,61 @@ Rectangle {
                             }
 
                             background: Rectangle {
-                                color: "#0f3460"
+                                color: Kirigami.Theme.alternateBackgroundColor
                                 radius: 4
                                 border.color: appsPage.getChannelColor(appChannel)
                                 border.width: 2
                             }
 
-                            contentItem: Text {
-                                leftPadding: 8
-                                text: appsPage.getChannelDisplayName(channelCombo.currentText)
-                                color: "#ffffff"
-                                verticalAlignment: Text.AlignVCenter
-                                elide: Text.ElideRight
+                            contentItem: RowLayout {
+                                spacing: 8
+
+                                Rectangle {
+                                    Layout.leftMargin: 8
+                                    width: 8
+                                    height: 8
+                                    radius: 4
+                                    color: appsPage.getChannelColor(channelCombo.currentText)
+                                }
+
+                                Text {
+                                    text: appsPage.getChannelDisplayName(channelCombo.currentText)
+                                    color: Kirigami.Theme.textColor
+                                    verticalAlignment: Text.AlignVCenter
+                                    elide: Text.ElideRight
+                                    Layout.fillWidth: true
+                                }
                             }
 
-                            delegate: ItemDelegate {
+                            delegate: QQC2.ItemDelegate {
                                 width: channelCombo.width
                                 height: 32
 
                                 required property string modelData
                                 required property int index
 
-                                contentItem: Text {
-                                    text: appsPage.getChannelDisplayName(modelData)
-                                    color: "#ffffff"
-                                    verticalAlignment: Text.AlignVCenter
+                                contentItem: RowLayout {
+                                    Rectangle {
+                                        Layout.leftMargin: 8
+                                        width: 8
+                                        height: 8
+                                        radius: 4
+                                        color: appsPage.getChannelColor(modelData)
+                                    }
+                                    Text {
+                                        text: appsPage.getChannelDisplayName(modelData)
+                                        color: Kirigami.Theme.textColor
+                                        verticalAlignment: Text.AlignVCenter
+                                        Layout.fillWidth: true
+                                    }
                                 }
 
                                 background: Rectangle {
-                                    color: parent.highlighted ? appsPage.getChannelColor(modelData) : "#16213e"
+                                    color: parent.highlighted ? appsPage.getChannelColor(modelData) : Kirigami.Theme.alternateBackgroundColor
                                 }
                             }
 
-                            popup: Popup {
+                            popup: QQC2.Popup {
                                 y: channelCombo.height
                                 width: channelCombo.width
                                 implicitHeight: contentItem.implicitHeight
@@ -222,8 +234,8 @@ Rectangle {
                                 }
 
                                 background: Rectangle {
-                                    color: "#16213e"
-                                    border.color: "#0f3460"
+                                    color: Kirigami.Theme.alternateBackgroundColor
+                                    border.color: Kirigami.Theme.backgroundColor
                                     radius: 4
                                 }
                             }
@@ -234,22 +246,20 @@ Rectangle {
         }
 
         // Empty state
-        Label {
+        Kirigami.PlaceholderMessage {
             visible: controller.app_count === 0
             Layout.fillWidth: true
             Layout.fillHeight: true
-            horizontalAlignment: Text.AlignHCenter
-            verticalAlignment: Text.AlignVCenter
-            text: "No audio applications detected\n\nPlay some audio to see apps here"
-            color: "#64748b"
-            font.pixelSize: 16
+            icon.name: "applications-multimedia"
+            text: "No audio applications detected"
+            explanation: "Play some audio to see apps here"
         }
 
         // Route rules section
         Rectangle {
             Layout.fillWidth: true
             Layout.preferredHeight: 150
-            color: "#16213e"
+            color: Kirigami.Theme.alternateBackgroundColor
             radius: 8
 
             ColumnLayout {
@@ -260,19 +270,19 @@ Rectangle {
                 RowLayout {
                     Layout.fillWidth: true
 
-                    Label {
+                    QQC2.Label {
                         text: "Default Routes"
                         font.pixelSize: 14
                         font.bold: true
-                        color: "#94a3b8"
+                        color: Kirigami.Theme.disabledTextColor
                     }
 
                     Item { Layout.fillWidth: true }
 
-                    Label {
+                    QQC2.Label {
                         text: "Rules are applied automatically"
                         font.pixelSize: 11
-                        color: "#64748b"
+                        color: Kirigami.Theme.disabledTextColor
                     }
                 }
 
@@ -283,17 +293,17 @@ Rectangle {
                     columnSpacing: 24
                     rowSpacing: 4
 
-                    Label { text: "Discord, Zoom, Teams"; font.pixelSize: 11; color: "#64748b" }
-                    Label { text: "-> Voice"; font.pixelSize: 11; color: channelColors["voice"]; font.bold: true }
+                    QQC2.Label { text: "Discord, Zoom, Teams"; font.pixelSize: 11; color: Kirigami.Theme.disabledTextColor }
+                    QQC2.Label { text: "-> Voice"; font.pixelSize: 11; color: channelColors["voice"]; font.bold: true }
 
-                    Label { text: "Spotify, Rhythmbox"; font.pixelSize: 11; color: "#64748b" }
-                    Label { text: "-> Music"; font.pixelSize: 11; color: channelColors["music"]; font.bold: true }
+                    QQC2.Label { text: "Spotify, Rhythmbox"; font.pixelSize: 11; color: Kirigami.Theme.disabledTextColor }
+                    QQC2.Label { text: "-> Music"; font.pixelSize: 11; color: channelColors["music"]; font.bold: true }
 
-                    Label { text: "Firefox, Chrome"; font.pixelSize: 11; color: "#64748b" }
-                    Label { text: "-> Browser"; font.pixelSize: 11; color: channelColors["browser"]; font.bold: true }
+                    QQC2.Label { text: "Firefox, Chrome"; font.pixelSize: 11; color: Kirigami.Theme.disabledTextColor }
+                    QQC2.Label { text: "-> Browser"; font.pixelSize: 11; color: channelColors["browser"]; font.bold: true }
 
-                    Label { text: "Steam"; font.pixelSize: 11; color: "#64748b" }
-                    Label { text: "-> Game"; font.pixelSize: 11; color: channelColors["game"]; font.bold: true }
+                    QQC2.Label { text: "Steam"; font.pixelSize: 11; color: Kirigami.Theme.disabledTextColor }
+                    QQC2.Label { text: "-> Game"; font.pixelSize: 11; color: channelColors["game"]; font.bold: true }
                 }
 
                 Item { Layout.fillHeight: true }

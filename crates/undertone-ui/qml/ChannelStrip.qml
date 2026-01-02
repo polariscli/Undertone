@@ -1,12 +1,13 @@
 import QtQuick
-import QtQuick.Controls
+import QtQuick.Controls as QQC2
 import QtQuick.Layouts
+import org.kde.kirigami as Kirigami
 
 Rectangle {
     id: channelStrip
     Layout.fillHeight: true
     Layout.preferredWidth: 64
-    color: "#16213e"
+    color: Kirigami.Theme.alternateBackgroundColor
     radius: 8
 
     // Properties
@@ -16,7 +17,7 @@ Rectangle {
     property bool muted: false
     property real levelLeft: 0.0
     property real levelRight: 0.0
-    property color channelColor: "#e94560"
+    property color channelColor: Kirigami.Theme.highlightColor  // Brand color for this channel
 
     // Signals
     signal volumeAdjusted(real newVolume)
@@ -28,7 +29,7 @@ Rectangle {
         spacing: 4
 
         // Channel name
-        Label {
+        QQC2.Label {
             text: displayName
             font.pixelSize: 11
             font.bold: true
@@ -48,7 +49,7 @@ Rectangle {
             Rectangle {
                 Layout.fillHeight: true
                 Layout.preferredWidth: 4
-                color: "#0f3460"
+                color: Kirigami.Theme.backgroundColor
                 radius: 2
 
                 Rectangle {
@@ -56,7 +57,7 @@ Rectangle {
                     width: parent.width
                     height: Math.min(levelLeft, 1.0) * parent.height
                     radius: 2
-                    color: levelLeft > 0.9 ? "#ef4444" : (levelLeft > 0.7 ? "#f59e0b" : "#4ade80")
+                    color: levelLeft > 0.9 ? Kirigami.Theme.negativeTextColor : (levelLeft > 0.7 ? Kirigami.Theme.neutralTextColor : Kirigami.Theme.positiveTextColor)
 
                     Behavior on height {
                         NumberAnimation { duration: 50 }
@@ -65,7 +66,7 @@ Rectangle {
             }
 
             // Volume slider
-            Slider {
+            QQC2.Slider {
                 id: volumeSlider
                 orientation: Qt.Vertical
                 from: 0
@@ -84,14 +85,14 @@ Rectangle {
                     width: 4
                     height: volumeSlider.availableHeight
                     radius: 2
-                    color: "#0f3460"
+                    color: Kirigami.Theme.backgroundColor
 
                     Rectangle {
                         width: parent.width
                         height: (1 - volumeSlider.visualPosition) * parent.height
                         y: parent.height - height
                         radius: 2
-                        color: channelStrip.muted ? "#64748b" : channelColor
+                        color: channelStrip.muted ? Kirigami.Theme.disabledTextColor : channelColor
                         opacity: channelStrip.muted ? 0.5 : 1.0
                     }
                 }
@@ -102,7 +103,7 @@ Rectangle {
                     width: 14
                     height: 6
                     radius: 2
-                    color: volumeSlider.pressed ? "#ffffff" : (channelStrip.muted ? "#64748b" : channelColor)
+                    color: volumeSlider.pressed ? Kirigami.Theme.textColor : (channelStrip.muted ? Kirigami.Theme.disabledTextColor : channelColor)
                     opacity: channelStrip.muted ? 0.5 : 1.0
                 }
             }
@@ -111,7 +112,7 @@ Rectangle {
             Rectangle {
                 Layout.fillHeight: true
                 Layout.preferredWidth: 4
-                color: "#0f3460"
+                color: Kirigami.Theme.backgroundColor
                 radius: 2
 
                 Rectangle {
@@ -119,7 +120,7 @@ Rectangle {
                     width: parent.width
                     height: Math.min(levelRight, 1.0) * parent.height
                     radius: 2
-                    color: levelRight > 0.9 ? "#ef4444" : (levelRight > 0.7 ? "#f59e0b" : "#4ade80")
+                    color: levelRight > 0.9 ? Kirigami.Theme.negativeTextColor : (levelRight > 0.7 ? Kirigami.Theme.neutralTextColor : Kirigami.Theme.positiveTextColor)
 
                     Behavior on height {
                         NumberAnimation { duration: 50 }
@@ -129,15 +130,15 @@ Rectangle {
         }
 
         // Volume value label
-        Label {
+        QQC2.Label {
             text: Math.round(channelStrip.volume * 100) + "%"
             font.pixelSize: 10
-            color: channelStrip.muted ? "#64748b" : "#94a3b8"
+            color: channelStrip.muted ? Kirigami.Theme.disabledTextColor : Kirigami.Theme.textColor
             Layout.alignment: Qt.AlignHCenter
         }
 
         // Mute button
-        Button {
+        QQC2.Button {
             Layout.preferredWidth: 40
             Layout.preferredHeight: 24
             Layout.alignment: Qt.AlignHCenter
@@ -146,7 +147,7 @@ Rectangle {
             onClicked: channelStrip.muteToggled()
 
             background: Rectangle {
-                color: channelStrip.muted ? "#ef4444" : "#0f3460"
+                color: channelStrip.muted ? Kirigami.Theme.negativeTextColor : Kirigami.Theme.backgroundColor
                 radius: 4
             }
 
@@ -154,7 +155,7 @@ Rectangle {
                 text: "M"
                 font.pixelSize: 11
                 font.bold: true
-                color: channelStrip.muted ? "#ffffff" : "#94a3b8"
+                color: channelStrip.muted ? Kirigami.Theme.textColor : Kirigami.Theme.disabledTextColor
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
             }

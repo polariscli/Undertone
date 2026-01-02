@@ -26,6 +26,7 @@ futures.workspace = true
 
 [build-dependencies]
 cxx-qt-build = "0.7"
+pkg-config = "0.3"
 
 [lints]
 workspace = true
