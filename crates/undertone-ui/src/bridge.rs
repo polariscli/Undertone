@@ -532,43 +532,56 @@ impl ffi::UndertoneController {
                 self.as_mut().set_active_profile(QString::from(active_profile.as_str()));
 
                 // Update global cache for vector data
-                if let Ok(mut cache) = get_ui_data().lock() {
+                // IMPORTANT: Release the lock BEFORE calling Qt setters to avoid deadlock!
+                // Qt property changes can trigger QML binding re-evaluation, which may call
+                // methods like channel_name() that also need this lock.
+                let (channel_count, app_count, profile_count) = {
+                    let mut cache = get_ui_data().lock().expect("UI_DATA mutex poisoned");
                     cache.channels = channels;
                     cache.apps = apps;
                     cache.profiles = profiles;
+                    (
+                        cache.channels.len() as i32,
+                        cache.apps.len() as i32,
+                        cache.profiles.len() as i32,
+                    )
+                }; // Lock released here
 
-                    // Update counts to trigger QML refresh
-                    self.as_mut().set_channel_count(cache.channels.len() as i32);
-                    self.as_mut().set_app_count(cache.apps.len() as i32);
-                    self.as_mut().set_profile_count(cache.profiles.len() as i32);
-                }
+                // Now safe to update Qt properties - QML bindings can access UI_DATA
+                self.as_mut().set_channel_count(channel_count);
+                self.as_mut().set_app_count(app_count);
+                self.as_mut().set_profile_count(profile_count);
             }
             IpcUpdate::ChannelVolumeChanged { channel, mix, volume } => {
                 debug!(channel = %channel, ?mix, volume, "Channel volume changed");
-                if let Ok(mut cache) = get_ui_data().lock() {
+                // Release lock before triggering Qt property change
+                let count = {
+                    let mut cache = get_ui_data().lock().expect("UI_DATA mutex poisoned");
                     if let Some(ch) = cache.channels.iter_mut().find(|c| c.name == channel) {
                         match mix {
                             MixType::Stream => ch.stream_volume = volume,
                             MixType::Monitor => ch.monitor_volume = volume,
                         }
                     }
-                    // Trigger UI refresh
-                    let count = cache.channels.len() as i32;
-                    self.as_mut().set_channel_count(count);
-                }
+                    cache.channels.len() as i32
+                };
+                // Trigger UI refresh after lock is released
+                self.as_mut().set_channel_count(count);
             }
             IpcUpdate::ChannelMuteChanged { channel, mix, muted } => {
                 debug!(channel = %channel, ?mix, muted, "Channel mute changed");
-                if let Ok(mut cache) = get_ui_data().lock() {
+                // Release lock before triggering Qt property change
+                let count = {
+                    let mut cache = get_ui_data().lock().expect("UI_DATA mutex poisoned");
                     if let Some(ch) = cache.channels.iter_mut().find(|c| c.name == channel) {
                         match mix {
                             MixType::Stream => ch.stream_muted = muted,
                             MixType::Monitor => ch.monitor_muted = muted,
                         }
                     }
-                    let count = cache.channels.len() as i32;
-                    self.as_mut().set_channel_count(count);
-                }
+                    cache.channels.len() as i32
+                };
+                self.as_mut().set_channel_count(count);
             }
             IpcUpdate::DeviceConnected { serial } => {
                 info!(?serial, "Device connected");

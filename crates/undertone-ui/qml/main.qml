@@ -4,7 +4,7 @@ import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
 import com.undertone
 
-Kirigami.ApplicationWindow {
+QQC2.ApplicationWindow {
     id: window
     visible: true
     width: 800
@@ -35,7 +35,6 @@ Kirigami.ApplicationWindow {
     // Header bar
     header: QQC2.ToolBar {
         height: 48
-        Kirigami.Theme.colorSet: Kirigami.Theme.Header
 
         background: Rectangle {
             color: Kirigami.Theme.backgroundColor
@@ -122,14 +121,14 @@ Kirigami.ApplicationWindow {
                 }
             }
 
-            // Profile selector with save button
+            // Profile selector
             RowLayout {
                 spacing: 4
 
                 QQC2.ComboBox {
                     id: profileSelector
                     Layout.preferredWidth: 120
-                    model: controller.profileCount
+                    model: controller.profile_count
                     font.pixelSize: 12
 
                     property int selectedIdx: 0
@@ -267,7 +266,6 @@ Kirigami.ApplicationWindow {
     // Status bar
     footer: QQC2.ToolBar {
         height: 24
-        Kirigami.Theme.colorSet: Kirigami.Theme.Header
 
         background: Rectangle {
             color: Kirigami.Theme.backgroundColor
@@ -295,37 +293,44 @@ Kirigami.ApplicationWindow {
     }
 
     // Save Profile Dialog
-    Kirigami.PromptDialog {
+    QQC2.Dialog {
         id: saveProfileDialog
         title: "Save Profile"
+        modal: true
+        anchors.centerIn: parent
+        width: 300
 
-        QQC2.TextField {
-            id: profileNameField
-            Layout.fillWidth: true
-            placeholderText: "Enter profile name"
+        ColumnLayout {
+            anchors.fill: parent
+            spacing: 16
+
+            QQC2.TextField {
+                id: profileNameField
+                Layout.fillWidth: true
+                placeholderText: "Enter profile name"
+            }
         }
 
-        standardButtons: Kirigami.Dialog.NoButton
-
-        customFooterActions: [
-            Kirigami.Action {
+        footer: QQC2.DialogButtonBox {
+            QQC2.Button {
                 text: "Cancel"
-                icon.name: "dialog-cancel"
-                onTriggered: {
-                    profileNameField.text = ""
-                    saveProfileDialog.close()
-                }
-            },
-            Kirigami.Action {
-                text: "Save"
-                icon.name: "document-save"
-                enabled: profileNameField.text.trim().length > 0
-                onTriggered: {
-                    controller.save_profile(profileNameField.text.trim())
-                    profileNameField.text = ""
-                    saveProfileDialog.close()
-                }
+                QQC2.DialogButtonBox.buttonRole: QQC2.DialogButtonBox.RejectRole
             }
-        ]
+            QQC2.Button {
+                text: "Save"
+                enabled: profileNameField.text.trim().length > 0
+                QQC2.DialogButtonBox.buttonRole: QQC2.DialogButtonBox.AcceptRole
+            }
+
+            onAccepted: {
+                controller.save_profile(profileNameField.text.trim())
+                profileNameField.text = ""
+                saveProfileDialog.close()
+            }
+            onRejected: {
+                profileNameField.text = ""
+                saveProfileDialog.close()
+            }
+        }
     }
 }
