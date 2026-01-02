@@ -15,14 +15,16 @@ The daemon and UI are fully functional with all core mixing features. Volume con
 - ✅ Channel strips display with names from daemon
 - ✅ **Volume sliders change actual audio** - PipeWire volume filter nodes control per-channel levels
 - ✅ **Mute buttons work** - PipeWire mute property toggled on filter nodes
+- ✅ **Master volume control** - Per-mix master volume and mute in UI
 - ✅ **App routing works** - Apps automatically routed to channels based on pattern rules
 - ✅ **SetAppRoute re-routes apps** - Changing route moves audio immediately
-- ✅ **Profiles save/load work** - Channel volumes, mutes, and routes persisted to DB
+- ✅ **Profiles save/load work** - Channel volumes, mutes, mixer state, and routes persisted to DB
 - ✅ **Default profile loaded on startup** - Restores last saved state
 - ✅ **Mic gain/mute work** - ALSA fallback via amixer for Wave:3
 - ✅ **USB device detection** - Wave:3 detected via rusb with serial number
-- ✅ Device page shows connection status
+- ✅ Device page shows connection status with accurate audio specs
 - ✅ Profile selector in header with save/load/delete
+- ✅ Stream/Monitor mix toggle with native segmented control styling
 - ✅ CI/CD infrastructure with GitHub Actions, clippy, rustfmt, cargo-deny
 - ✅ **Installation scripts** - systemd service, udev rules, install.sh
 
@@ -558,19 +560,22 @@ pw-cli list-objects Node | grep ut-
 
 ---
 
-## Git History
+## Git History (Recent)
 
 ```
-32a93fc fix(ui): Fix state parsing and QML property bindings
-049c4af fix(ui): Use snake_case for QML method calls
-6a8266d docs: Update PROGRESS.md with IPC integration status
-3d45413 feat(ui): Implement IPC integration between UI and daemon
-513d247 fix: Rename volumeChanged signal to avoid Qt property conflict
-f058066 fix: Move QML files to crate directory for correct resource paths
-f5eec6d feat: Implement Profile management UI (Milestone 8)
-fb7ce70 feat: Implement Device Panel UI (Milestone 7)
-f49192e feat: Implement App Routing UI (Milestone 6)
-b41dee8 feat: Implement Qt6/QML UI framework with cxx-qt
-1ac61ae docs: Add PROGRESS.md with development status
-f8d6ec8 feat: Implement Undertone daemon with PipeWire integration
+84b8f1d fix(ui): Improve header status and toggle styling
+fd7e874 feat(ui): Add master volume control and fix ComboBox issues
+92a1bb6 feat(daemon): Track active app routes in StateSnapshot
+fff5585 feat(daemon): Implement proper profile loading from database
+771d204 chore: Update namespace to org.afterlike.undertone and repo URL
+343f3db fix(ui): Resolve mutex deadlock when updating QML properties
+2cde670 fix(ui): Use QQuickStyle API for proper Qt style initialization
+c7642b4 feat(ui): Migrate to KDE Kirigami for native theming
+fca913d fix(pipewire): Reuse existing undertone nodes on daemon restart
+d124afe feat(pipewire): Add flexible Wave:3 detection and WirePlumber scripts
+1171619 fix(pipewire): Fix node ID lookup and link creation timing
+d6029ec feat(install): Add installation scripts and update documentation
+447792c feat(usb): Add USB device detection with rusb
+6c6bd62 feat(mic): Wire ALSA mic control to daemon commands
+61f97d2 feat(profiles): Implement profile save/load/delete functionality
 ```
