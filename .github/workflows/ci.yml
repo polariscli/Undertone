@@ -38,7 +38,8 @@ jobs:
             qt6-base-dev \
             qt6-declarative-dev \
             libgl1-mesa-dev \
-            clang
+            clang \
+            mold
       - uses: Swatinem/rust-cache@v2
       - run: cargo clippy --workspace --all-targets -- -D warnings
 
@@ -57,7 +58,8 @@ jobs:
             qt6-base-dev \
             qt6-declarative-dev \
             libgl1-mesa-dev \
-            clang
+            clang \
+            mold
       - uses: Swatinem/rust-cache@v2
       - run: cargo test --workspace
 
@@ -76,7 +78,8 @@ jobs:
             qt6-base-dev \
             qt6-declarative-dev \
             libgl1-mesa-dev \
-            clang
+            clang \
+            mold
       - uses: Swatinem/rust-cache@v2
       - run: cargo build --workspace --release
 
@@ -104,7 +107,8 @@ jobs:
             qt6-base-dev \
             qt6-declarative-dev \
             libgl1-mesa-dev \
-            clang
+            clang \
+            mold
       - uses: Swatinem/rust-cache@v2
       - uses: taiki-e/install-action@cargo-llvm-cov
       - name: Generate coverage
