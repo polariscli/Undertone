@@ -389,6 +389,13 @@ check_dependencies() {
         print_success "clang found"
     fi
 
+    # Check for mold linker (faster builds)
+    if ! command -v mold &>/dev/null; then
+        missing+=("mold")
+    else
+        print_success "mold linker found"
+    fi
+
     # Check for PipeWire development files
     if ! pkg-config --exists libpipewire-0.3 2>/dev/null; then
         case "$OS_ID" in
