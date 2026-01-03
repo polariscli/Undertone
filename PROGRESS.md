@@ -8,100 +8,70 @@
 
 ## Current Status: Core Features Complete
 
-The daemon and UI are fully functional with all core mixing features. Volume control, app routing, profiles, and mic control all work end-to-end.
+The daemon and UI are fully functional with all core mixing features. Volume control, mute, app routing, profiles, and output device selection all work end-to-end.
 
 ### What Works
-- ✅ UI launches and connects to daemon
-- ✅ Channel strips display with names from daemon
-- ✅ **Volume sliders change actual audio** - PipeWire volume filter nodes control per-channel levels
-- ✅ **Mute buttons work** - PipeWire mute property toggled on filter nodes
-- ✅ **Master volume control** - Per-mix master volume and mute in UI
-- ✅ **Monitor output selection** - Switch between headphones, speakers, HDMI, etc.
-- ✅ **App routing works** - Apps automatically routed to channels based on pattern rules
-- ✅ **SetAppRoute re-routes apps** - Changing route moves audio immediately
-- ✅ **Profiles save/load work** - Channel volumes, mutes, mixer state, and routes persisted to DB
-- ✅ **Default profile loaded on startup** - Restores last saved state
-- ✅ **Mic gain/mute work** - ALSA fallback via amixer for Wave:3
-- ✅ **USB device detection** - Wave:3 detected via rusb with serial number
-- ✅ Device page shows connection status with accurate audio specs
-- ✅ Profile selector in header with save/load/delete
-- ✅ Stream/Monitor mix toggle with native segmented control styling
-- ✅ CI/CD infrastructure with GitHub Actions, clippy, rustfmt, cargo-deny
-- ✅ **Installation scripts** - systemd service, udev rules, install.sh
+
+- **Volume sliders** - Per-channel volume control via PipeWire filter nodes
+- **Mute buttons** - Full mute using PipeWire monitorMute property
+- **Master volume** - Per-mix master volume and mute controls
+- **Monitor output selection** - Switch between headphones, speakers, HDMI, etc.
+- **App routing** - Apps automatically routed to channels based on pattern rules
+- **Route changes** - Changing app route moves audio immediately
+- **Profiles** - Save/load mixer configurations with channel volumes, mutes, routes
+- **Default profile** - Restores last saved state on daemon startup
+- **Mic control** - Gain and mute via ALSA fallback
+- **Device detection** - Wave:3 detected via USB with serial number
+- **UI** - Qt6/QML with Kirigami for native KDE theming
 
 ### What Doesn't Work Yet
-- ❌ **VU meters are static** - Requires PipeWire monitor stream setup (complex)
-- ❌ **HID mic control** - Using ALSA fallback, native HID not implemented
 
-### Verified Working Features
+- **VU meters** - Requires PipeWire monitor stream setup (complex)
+- **HID mic control** - Using ALSA fallback, native HID not implemented
 
-```bash
-# Virtual nodes created (including volume filter nodes)
-$ pw-cli list-objects Node | grep -E "ut-|wave3"
-node.name = "wave3-source"
-node.name = "wave3-null-sink"
-node.name = "ut-ch-system"
-node.name = "ut-ch-system-stream-vol"     # Volume filter for stream mix
-node.name = "ut-ch-system-monitor-vol"    # Volume filter for monitor mix
-# ... and similar for voice, music, browser, game channels
-node.name = "wave3-sink"
-node.name = "ut-ch-system"
-node.name = "ut-ch-voice"
-node.name = "ut-ch-music"
-node.name = "ut-ch-browser"
-node.name = "ut-ch-game"
-node.name = "ut-stream-mix"
-node.name = "ut-monitor-mix"
+---
 
-# Links connecting channels to mixes (20 links total)
-# Each channel has 4 links: 2 to stream-mix, 2 to monitor-mix (stereo)
-$ pw-link -l | grep "ut-"
+## Recent Bug Fixes
 
-# IPC socket created and responding
-$ ls -la $XDG_RUNTIME_DIR/undertone/daemon.sock
-srw-rw-rw- 1 user user 0 Jan  1 12:00 /run/user/1000/undertone/daemon.sock
+### Volume/Mute Control (ae24293)
+- Fixed volume control using `monitorVolumes`/`monitorMute` SPA properties
+- Audio flows through monitor ports, so these properties control actual levels
+- Removed `object.linger` from links to allow proper destruction
 
-# Example IPC request/response
-$ echo '{"id":1,"method":{"type":"GetState"}}' | socat - UNIX-CONNECT:$XDG_RUNTIME_DIR/undertone/daemon.sock
-{"id":1,"result":{"Ok":{"state":"running","device_connected":true,...}}}
+### App Routing (2d3a335)
+- Fixed empty profile routes overwriting global routes
+- Default profile has no routes in `profile_routes` table, was clearing all routing
+- Now preserves global `app_routes` when profile has no custom routes
+- Fixed external link destruction using `registry.destroy_global(id)`
+- Apps no longer connect to multiple channels simultaneously
+
+---
+
+## Audio Routing Chain
+
+```
+App (e.g., Spotify)
+    │
+    ▼
+ut-ch-music (channel sink)
+    │
+    ├──► ut-ch-music-stream-vol ──► ut-stream-mix ──► OBS capture
+    │
+    └──► ut-ch-music-monitor-vol ──► ut-monitor-mix ──► wave3-sink (headphones)
 ```
 
 ---
 
-## System Context
+## System Requirements
 
 | Component    | Version                                                   |
 | ------------ | --------------------------------------------------------- |
-| OS           | Fedora 43, Linux 6.17.12                                  |
-| PipeWire     | 1.4.9 (socket-activated)                                  |
-| WirePlumber  | 0.5.12                                                    |
-| Rust         | 1.92.0                                                    |
+| OS           | Fedora 43, Linux 6.17+                                    |
+| PipeWire     | 1.4.9+                                                    |
+| WirePlumber  | 0.5.12+                                                   |
+| Rust         | 1.85+ (Edition 2024)                                      |
+| Qt           | 6.x with Kirigami                                         |
 | Wave:3       | VID 0x0fd9, PID 0x0070                                    |
-| Existing Fix | `~/.config/wireplumber/wireplumber.conf.d/51-elgato.conf` |
-
----
-
-## Architecture
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                        undertone-daemon                          │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐   │
-│  │ Unix Socket  │  │   Signal     │  │    Config Watcher    │   │
-│  │   Server     │  │   Handler    │  │      (notify)        │   │
-│  └──────────────┘  └──────────────┘  └──────────────────────┘   │
-│                           │                                      │
-│  ┌─────────────────────────────────────────────────────────────┐ │
-│  │                    undertone-core                           │ │
-│  │  Channels │ Mixer (Stream/Monitor) │ App Routing │ State   │ │
-│  └─────────────────────────────────────────────────────────────┘ │
-│         │                 │                 │                    │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────┐   │
-│  │ undertone-  │  │ undertone-  │  │     undertone-hid       │   │
-│  │  pipewire   │  │     db      │  │       (plugin)          │   │
-│  └─────────────┘  └─────────────┘  └─────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────┘
-```
 
 ---
 
@@ -112,471 +82,126 @@ Undertone/
 ├── Cargo.toml                    # Workspace root
 ├── CLAUDE.md                     # AI assistant context
 ├── PROGRESS.md                   # This file
+├── README.md                     # User documentation
 ├── crates/
-│   ├── undertone-daemon/         # Main daemon binary ✅
-│   │   └── src/
-│   │       ├── main.rs           # Entry point, main loop
-│   │       └── server.rs         # IPC request handlers
-│   ├── undertone-core/           # Business logic ✅
-│   │   └── src/
-│   │       ├── channel.rs        # Channel definitions
-│   │       ├── command.rs        # State mutation commands
-│   │       ├── mixer.rs          # Mix routing logic
-│   │       ├── profile.rs        # Profile types
-│   │       ├── routing.rs        # App routing rules
-│   │       └── state.rs          # State machine
-│   ├── undertone-pipewire/       # PipeWire graph management ✅
-│   │   └── src/
-│   │       ├── graph.rs          # Graph state cache
-│   │       ├── monitor.rs        # Event monitoring
-│   │       └── runtime.rs        # Node/link creation
-│   ├── undertone-db/             # SQLite persistence ✅
-│   ├── undertone-ipc/            # IPC protocol definitions ✅
-│   │   └── src/
-│   │       ├── client.rs         # Client for UI
-│   │       ├── events.rs         # Event types
-│   │       ├── messages.rs       # Request/response types
-│   │       └── server.rs         # Server for daemon
-│   ├── undertone-hid/            # Wave:3 HID integration (stub)
-│   └── undertone-ui/             # Qt6/QML UI application ✅
-│       ├── qml/
-│       │   ├── main.qml          # Main window, tabs
-│       │   ├── MixerPage.qml     # Channel strips
-│       │   ├── ChannelStrip.qml  # Individual fader
-│       │   ├── AppsPage.qml      # App routing
-│       │   └── DevicePage.qml    # Device controls
-│       └── src/
-│           ├── app.rs            # Application entry
-│           ├── bridge.rs         # cxx-qt QObject bridge
-│           ├── ipc_handler.rs    # Async IPC thread
-│           └── state.rs          # UI state
+│   ├── undertone-daemon/         # Main daemon binary
+│   ├── undertone-core/           # Business logic
+│   ├── undertone-pipewire/       # PipeWire integration
+│   ├── undertone-db/             # SQLite persistence
+│   ├── undertone-ipc/            # IPC protocol
+│   ├── undertone-hid/            # Wave:3 HID (stub)
+│   └── undertone-ui/             # Qt6/QML UI
 ├── config/                       # Config templates
 └── scripts/                      # Installation scripts
-    ├── undertone-daemon.service  # systemd user service
-    ├── 99-elgato-wave3.rules     # udev rules for USB access
-    └── install.sh                # Installation helper script
 ```
 
 ---
 
-## Milestone Progress
-
-### ✅ Milestone 1: Foundation (COMPLETE)
-
-**Deliverables:**
-
-- [x] Rust workspace with all crate scaffolding
-- [x] Daemon connects to PipeWire, logs events
-- [x] SQLite schema and migrations
-- [x] Basic Unix socket server
-
-**Key Files:**
-
-- `Cargo.toml` (workspace)
-- `crates/undertone-daemon/src/main.rs`
-- `crates/undertone-pipewire/src/lib.rs`
-- `crates/undertone-db/src/schema.rs`
-
----
-
-### ✅ Milestone 2: Virtual Channels (COMPLETE)
-
-**Deliverables:**
-
-- [x] Create 5 virtual channel sinks via PipeWire
-- [x] Create 2 mix nodes (stream-mix, monitor-mix)
-- [x] Detect `wave3-source`/`wave3-sink` nodes
-- [x] Monitor graph for node/port/link changes
-- [x] Detect audio clients (e.g., Spotify)
-
-**Success Criteria:**
-
-- [x] `pw-cli list-objects Node | grep ut-ch-` shows 5 channels
-- [x] `pw-cli list-objects Node | grep ut-stream-mix` shows mix node
-- [x] Wave:3 detection logs on daemon startup
-
-**Technical Implementation:**
-
-- Uses `MainLoopRc`/`ContextRc`/`CoreRc` for proper pipewire-rs lifecycle
-- `pipewire::channel` for cross-thread communication with main loop
-- Stores node/link proxies in `Rc<RefCell<Vec<...>>>` to prevent destruction
-- `GraphManager` caches PipeWire graph state with `parking_lot::RwLock`
-
----
-
-### ✅ Milestone 3: Mix Routing (COMPLETE)
-
-**Deliverables:**
-
-- [x] Link channel sinks to stream-mix and monitor-mix
-- [ ] Per-channel volume/mute for each mix (deferred - requires filter nodes)
-- [ ] Mic input routing to mixes (deferred)
-- [x] Link management (create/destroy links)
-
-**Success Criteria:**
-
-- [x] Audio from channel sinks flows to mix nodes
-- [x] OBS can capture `ut-stream-mix` monitor ports
-
-**Technical Implementation:**
-
-- Added public `create_link()`, `create_stereo_links()`, `destroy_link()` methods to `PipeWireRuntime`
-- Added `create_channel_to_mix_links()` helper that links all channels to both mixes
-- Added `link_monitor_to_headphones()` to route monitor-mix to Wave:3 sink
-- Port naming: PipeWire uses `monitor_FL`/`monitor_FR` for output, `playback_FL`/`playback_FR` for input
-- Links created: 20 individual links (5 channels × 2 mixes × 2 channels)
-- Added port query helpers to `GraphManager`: `get_port_by_name()`, `get_input_ports()`, `get_output_ports()`, etc.
-- Links tracked in `GraphManager.created_links` for state management
-
-**Remaining Work (Milestone 3b):**
-
-- Per-channel volume control requires filter nodes between channels and mixes
-- Mic input routing (wave3-source → mixes) with independent volume control
-
----
-
-### ✅ Milestone 4: IPC Protocol (COMPLETE)
-
-**Deliverables:**
-
-- [x] Complete JSON protocol implementation
-- [x] All request/response methods
-- [x] Event subscription and broadcasting
-- [x] Command-based state mutation architecture
-
-**Success Criteria:**
-
-- [x] IPC socket created at `$XDG_RUNTIME_DIR/undertone/daemon.sock`
-- [x] GetState/GetChannels/GetDeviceStatus requests work
-- [x] SetChannelVolume/SetChannelMute update in-memory state
-- [x] SetAppRoute/RemoveAppRoute persist to database
-- [x] Events broadcast on state changes (ChannelVolumeChanged, DeviceConnected, etc.)
-- [x] Shutdown command gracefully stops daemon
-
-**Technical Implementation:**
-
-- Added `Command` enum in `undertone-core/src/command.rs` for state mutations
-- Request handlers return `HandleResult` with response + optional command
-- Commands processed in main loop with mutable access to state
-- Events broadcast via `tokio::sync::broadcast` channel
-- Routing rules persisted to SQLite with `RouteRule` type
-- Volume/mute changes tracked in `ChannelState` (PipeWire integration deferred to Milestone 3b)
-
----
-
-### ✅ Milestone 5: UI Framework (COMPLETE)
-
-**Deliverables:**
-
-- [x] Main window with tabs (Mixer, Apps, Device)
-- [x] Mixer page with channel strips
-- [ ] VU meters with real-time levels (deferred - needs PipeWire level monitoring)
-- [x] Volume faders and mute buttons
-- [x] cxx-qt bridge to expose Rust controller to QML
-
-**Framework:** cxx-qt 0.7 (Qt6/QML with Rust backend)
-
-**Success Criteria:**
-
-- [x] UI builds and launches successfully
-- [x] QML loads from compiled QRC resources
-- [x] UndertoneController exposed to QML with properties
-- [x] Dark theme with Wave:3 inspired color scheme
-
-**Technical Implementation:**
-
-- Uses `QGuiApplication` and `QQmlApplicationEngine` from cxx-qt-lib
-- Bridge in `src/bridge.rs` exposes `UndertoneController` QObject to QML
-- Index-based channel access (channelName, channelVolume, channelMuted, etc.)
-- QML files: main.qml (app window), MixerPage.qml, ChannelStrip.qml
-- Qt modules: Core, Qml, Quick, QuickControls2
-
----
-
-### ✅ Milestone 6: App Routing UI (COMPLETE)
-
-**Deliverables:**
-
-- [x] List of active audio apps
-- [x] Click-to-assign channel routing
-- [x] Persistent route rules display
-
-**Technical Implementation:**
-
-- AppsPage.qml with ListView showing active apps
-- ComboBox channel selector per app with color-coded channels
-- Persistent route indicator (P badge)
-- Default routes reference panel (Discord->Voice, Spotify->Music, etc.)
-- Bridge methods: app_name, app_binary, app_channel, app_persistent, set_app_channel, available_channels
-- UiCommand::SetAppChannel for async route changes
-
----
-
-### ✅ Milestone 7: Device Panel (COMPLETE)
-
-**Deliverables:**
-
-- [x] Device status display
-- [x] Mic gain slider (via ALSA fallback)
-- [x] Mute toggle
-
-**Technical Implementation:**
-
-- DevicePage.qml with device connection status, mic controls, audio info
-- Gain slider with visual feedback (0-100%)
-- Mute button with animated indicator when muted
-- Disconnected overlay when device not available
-- Audio configuration display (sample rate, bit depth, latency)
-- Bridge properties: mic_muted, mic_gain
-- Bridge methods: set_mic_gain_value, toggle_mic_mute
-- UiCommand::SetMicGain and UiCommand::ToggleMicMute for IPC
-
----
-
-### ✅ Milestone 8: Profiles (COMPLETE)
-
-**Deliverables:**
-
-- [x] Save/load mixer configurations
-- [x] Default profile on startup
-- [ ] Import/export as JSON (deferred)
-
-**Technical Implementation:**
-
-- Enhanced profile selector in header with dropdown list
-- Save profile dialog with name input and validation
-- Bridge properties: profile_count
-- Bridge methods: profile_name, profile_is_default, save_profile, load_profile, delete_profile
-- UiCommand::SaveProfile, LoadProfile, DeleteProfile for IPC
-- Profile types defined in `undertone-core/src/profile.rs`
-- Database tables exist for persistence
-
----
-
-### ✅ Milestone 8.5: IPC Integration (COMPLETE)
-
-**Deliverables:**
-
-- [x] Connect UI to daemon socket
-- [x] Real-time state synchronization
-- [x] Event subscription handling
-- [x] Command dispatch from UI to daemon
-
-**Technical Implementation:**
-
-- Added `ipc_handler.rs` module with tokio runtime in background thread
-- `IpcHandle` manages connection, command sending, update receiving
-- Uses `IpcUpdate` enum for daemon-to-UI communication
-- Global `IPC_HANDLE` and `UI_DATA` caches for thread-safe state sharing
-- `poll_updates()` QML-invokable called by Timer at 20Hz
-- All controller methods use `send_command()` for daemon communication
-- Subscribes to: volume/mute changes, device connect/disconnect, app events, profile changes
-
----
-
-### 🔮 Milestone 9: Wave:3 Hardware (DEFERRED)
-
-**Status:** Deferred until core mixer is stable. Using ALSA fallback.
-
-**Deliverables (when prioritized):**
-
-- [ ] USB traffic capture on Windows to reverse-engineer protocol
-- [ ] HID protocol implementation for Interface 3 (vendor-specific)
-- [ ] Bidirectional mute sync (hardware button ↔ software state)
-- [ ] LED control (if feasible)
-
----
-
-### ⏳ Milestone 10: Polish & Release (NOT STARTED)
-
-**Deliverables:**
-
-- [ ] Diagnostics page
-- [ ] Error recovery
-- [ ] Installation scripts
-- [ ] Documentation
-
----
-
-## PipeWire Graph Topology
-
-### Undertone Nodes (Created by Daemon)
-
-| Node Name        | media.class | Purpose                       |
-| ---------------- | ----------- | ----------------------------- |
-| `ut-ch-system`   | Audio/Sink  | System sounds channel         |
-| `ut-ch-voice`    | Audio/Sink  | Voice chat (Discord, Zoom)    |
-| `ut-ch-music`    | Audio/Sink  | Music apps (Spotify)          |
-| `ut-ch-browser`  | Audio/Sink  | Browser audio                 |
-| `ut-ch-game`     | Audio/Sink  | Games                         |
-| `ut-stream-mix`  | Audio/Sink  | Combined output for streaming |
-| `ut-monitor-mix` | Audio/Sink  | Local monitoring mix          |
-
-### Hardware Nodes (from WirePlumber config)
-
-| Node Name         | Purpose                   |
-| ----------------- | ------------------------- |
-| `wave3-source`    | Physical mic input        |
-| `wave3-sink`      | Physical headphone output |
-| `wave3-null-sink` | Keeps source active       |
-
----
-
-## Key Dependencies
-
-```toml
-[workspace.dependencies]
-tokio = { version = "1.42", features = ["rt-multi-thread", "macros", "sync", "signal", "net", "io-util", "fs", "time"] }
-pipewire = "0.9"
-libspa = "0.9"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-rusqlite = { version = "0.32", features = ["bundled"] }
-cxx-qt = "0.7"
-cxx-qt-lib = "0.7"
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
-thiserror = "2.0"
-anyhow = "1.0"
-parking_lot = "0.12"
-```
-
-**System Dependencies (Fedora):**
-
-```bash
-sudo dnf install pipewire-devel qt6-qtbase-devel qt6-qtdeclarative-devel
-```
-
----
-
-## Installation Paths
-
-| Component   | Path                                                         |
-| ----------- | ------------------------------------------------------------ |
-| Binaries    | `~/.local/bin/undertone-daemon`, `~/.local/bin/undertone`    |
-| Data        | `~/.local/share/undertone/`                                  |
-| Config      | `~/.config/undertone/config.toml`                            |
-| WirePlumber | `~/.config/wireplumber/wireplumber.conf.d/60-undertone.conf` |
-| systemd     | `~/.config/systemd/user/undertone.service`                   |
-| udev        | `/etc/udev/rules.d/70-elgato-wave3.rules`                    |
-
----
-
-## Running the Daemon
-
-```bash
-# Build
-cargo build -p undertone-daemon
-
-# Run (creates database, connects to PipeWire, creates virtual sinks)
-cargo run -p undertone-daemon
-
-# Verify nodes were created
-pw-cli list-objects Node | grep ut-
-```
-
----
-
-## Remaining Work
-
-### Completed Features
-
-1. **Volume Control** - ✅ COMPLETED
-   - [x] Create PipeWire filter/volume nodes between channels and mixes
-   - [x] Apply `SetChannelVolume` commands to PipeWire nodes
-   - [x] Apply `SetChannelMute` by setting mute property on nodes
-
-2. **App Routing Implementation** - ✅ COMPLETED
-   - [x] When app route changes, update PipeWire links
-   - [x] Move app's audio stream to target channel sink
-   - [x] Handle new apps appearing (apply routing rules)
-   - [x] Persist routes to database on change
-
-3. **Mic Control Backend** - ✅ COMPLETED (ALSA fallback)
-   - [x] Implement ALSA fallback for mic gain (`amixer`)
-   - [x] SetMicGain and SetMicMute commands wired to daemon
-
-4. **Profile Persistence** - ✅ COMPLETED
-   - [x] Implement `Command::SaveProfile` in daemon
-   - [x] Store channel volumes, mutes, app routes in database
-   - [x] Implement `Command::LoadProfile` to restore state
-   - [x] Load default profile on daemon startup
-
-5. **Device Detection** - ✅ COMPLETED
-   - [x] Query USB device for serial number via rusb
-   - [x] ALSA card detection as fallback
-   - [x] Update `device_connected` and `device_serial` in state
-
-6. **Release Readiness** - ✅ COMPLETED
-   - [x] Installation scripts (systemd service, udev rules)
-   - [x] install.sh for easy setup
-
-### Medium Priority (Usability)
-
-7. **VU Meters** - Real-time audio levels
-   - [ ] Create PipeWire monitor streams for peak detection
-   - [ ] Stream level data to UI via IPC events
-   - [ ] Animate UI level bars
-   - Note: Requires complex PipeWire stream setup (see pwvucontrol)
-
-8. **Error Handling** - Robustness
-   - [x] UI reconnection with retry loop (already implemented)
-   - [ ] Graceful handling of daemon crashes
-   - [ ] Visual error states in UI
-   - [ ] Logging/diagnostics page
-
-### Low Priority (Polish)
-
-9. **Wave:3 HID Integration**
-   - [ ] Reverse-engineer USB HID protocol from Windows
-   - [ ] Implement bidirectional mute sync
-   - [ ] LED control (if protocol supports it)
-   - [ ] Hardware gain control (currently ALSA)
-
-10. **UI Enhancements**
-    - [ ] Keyboard shortcuts (mute all, etc.)
-    - [ ] System tray icon
-    - [ ] Minimize to tray
-    - [ ] Auto-start on login
-    - [ ] Diagnostics page showing PipeWire graph state
-    - [ ] Config file support (`~/.config/undertone/config.toml`)
-
----
-
-## Known Issues
-
-### Bugs
-
-1. **cxx-qt method naming**: Methods keep snake_case in QML (e.g., `poll_updates` not `pollUpdates`)
-
-### Architectural Limitations
-
-2. **No VU meters**: Requires PipeWire monitor streams for peak detection (complex to implement)
-
-### Missing Features
-
-3. **No keyboard shortcuts**: All interaction is mouse-only
-4. **No tray icon**: App must stay open in window
-5. **No HID mic control**: Using ALSA fallback, hardware mute button not synced
+## Milestone Summary
+
+| Milestone | Status | Description |
+| --------- | ------ | ----------- |
+| 1. Foundation | Complete | Workspace, PipeWire connection, SQLite, IPC socket |
+| 2. Virtual Channels | Complete | 5 channel sinks, 2 mix nodes, Wave:3 detection |
+| 3. Mix Routing | Complete | Channel-to-mix links, volume filters |
+| 4. IPC Protocol | Complete | Full JSON protocol, events, commands |
+| 5. UI Framework | Complete | Qt6/QML with Kirigami, channel strips |
+| 6. App Routing UI | Complete | Active apps list, route assignment |
+| 7. Device Panel | Complete | Connection status, mic controls |
+| 8. Profiles | Complete | Save/load/delete, default on startup |
+| 9. Wave:3 HID | Deferred | Using ALSA fallback |
+| 10. Polish | In Progress | Bug fixes, documentation |
 
 ---
 
 ## Git History (Recent)
 
 ```
+2d3a335 fix(routing): Preserve global routes when profile has none
+ae24293 fix(pipewire): Use monitorVolumes/monitorMute for volume control
+69fa0d1 docs: Update PROGRESS.md with monitor output selection feature
 e667056 feat(ui): Add monitor output device selection
+6143b6d docs: Update CLAUDE.md and PROGRESS.md with latest features
 84b8f1d fix(ui): Improve header status and toggle styling
 fd7e874 feat(ui): Add master volume control and fix ComboBox issues
-92a1bb6 feat(daemon): Track active app routes in StateSnapshot
-fff5585 feat(daemon): Implement proper profile loading from database
-771d204 chore: Update namespace to org.afterlike.undertone and repo URL
-343f3db fix(ui): Resolve mutex deadlock when updating QML properties
-2cde670 fix(ui): Use QQuickStyle API for proper Qt style initialization
-c7642b4 feat(ui): Migrate to KDE Kirigami for native theming
-fca913d fix(pipewire): Reuse existing undertone nodes on daemon restart
-d124afe feat(pipewire): Add flexible Wave:3 detection and WirePlumber scripts
-1171619 fix(pipewire): Fix node ID lookup and link creation timing
-d6029ec feat(install): Add installation scripts and update documentation
-447792c feat(usb): Add USB device detection with rusb
-6c6bd62 feat(mic): Wire ALSA mic control to daemon commands
+```
+
+---
+
+## Remaining Work
+
+### High Priority
+- Test and verify all audio routing works correctly
+- Verify mute produces complete silence
+- Verify output device switching works
+
+### Medium Priority
+- VU meters (requires PipeWire monitor streams)
+- Error handling and recovery
+- Diagnostics page
+
+### Low Priority
+- Wave:3 HID integration (reverse-engineer protocol)
+- Keyboard shortcuts
+- System tray icon
+- Auto-start on login
+
+---
+
+## Verified Working
+
+```bash
+# Virtual nodes created
+$ pw-cli list-objects Node | grep ut-
+node.name = "ut-ch-system"
+node.name = "ut-ch-voice"
+node.name = "ut-ch-music"
+node.name = "ut-ch-browser"
+node.name = "ut-ch-game"
+node.name = "ut-stream-mix"
+node.name = "ut-monitor-mix"
+# Plus volume filter nodes for each channel
+
+# Audio links established
+$ pw-link -l | grep spotify
+spotify:output_FL
+  |-> ut-ch-music:playback_FL
+spotify:output_FR
+  |-> ut-ch-music:playback_FR
+
+# Monitor mix to headphones
+$ pw-link -l | grep "ut-monitor-mix"
+ut-monitor-mix:monitor_FL
+  |-> wave3-sink:playback_FL
+ut-monitor-mix:monitor_FR
+  |-> wave3-sink:playback_FR
+
+# IPC communication
+$ echo '{"id":1,"method":{"type":"GetState"}}' | socat - UNIX-CONNECT:$XDG_RUNTIME_DIR/undertone/daemon.sock
+{"id":1,"result":{"Ok":{"state":"running","device_connected":true,...}}}
+```
+
+---
+
+## Known Issues
+
+1. **VU meters static** - Requires PipeWire monitor streams (complex)
+2. **No HID mic control** - Using ALSA fallback, hardware mute button not synced
+3. **cxx-qt naming** - Methods keep snake_case in QML
+
+---
+
+## Dependencies
+
+```toml
+tokio = "1.42"
+pipewire = "0.9"
+libspa = "0.9"
+serde = "1.0"
+serde_json = "1.0"
+rusqlite = "0.32"
+cxx-qt = "0.7"
+cxx-qt-lib = "0.7"
+tracing = "0.1"
+parking_lot = "0.12"
 ```
