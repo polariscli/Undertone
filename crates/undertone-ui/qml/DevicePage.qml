@@ -351,10 +351,10 @@ Rectangle {
                             displayText: controller.output_device_description(currentIndex) || "Select output..."
 
                             delegate: QQC2.ItemDelegate {
-                                required property int index
+                                required property int modelData
                                 width: outputDeviceCombo.width
-                                text: controller.output_device_description(index)
-                                highlighted: outputDeviceCombo.highlightedIndex === index
+                                text: controller.output_device_description(modelData)
+                                highlighted: outputDeviceCombo.highlightedIndex === modelData
                             }
 
                             onActivated: (index) => {
