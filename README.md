@@ -74,13 +74,9 @@ Undertone creates virtual audio sinks in PipeWire that applications connect to. 
 
 ```
 App (Spotify)
-    │
-    ▼
-ut-ch-music (channel sink)
-    │
-    ├──► ut-ch-music-stream-vol ──► ut-stream-mix ──► OBS
-    │
-    └──► ut-ch-music-monitor-vol ──► ut-monitor-mix ──► Headphones
+  -> ut-ch-music (channel sink)
+       -> ut-ch-music-stream-vol -> ut-stream-mix -> OBS
+       -> ut-ch-music-monitor-vol -> ut-monitor-mix -> Headphones
 ```
 
 ### Default App Routing
@@ -163,32 +159,16 @@ echo '{"id":1,"method":{"type":"GetState"}}' | \
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                     undertone-daemon                         │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐  │
-│  │ IPC Server  │  │   Signal    │  │   Event Loop        │  │
-│  │ (Unix Sock) │  │   Handler   │  │   (Tokio)           │  │
-│  └─────────────┘  └─────────────┘  └─────────────────────┘  │
-│                           │                                  │
-│  ┌───────────────────────────────────────────────────────┐  │
-│  │                  undertone-core                        │  │
-│  │  Channels │ Mixer │ App Routing │ Profiles │ State    │  │
-│  └───────────────────────────────────────────────────────┘  │
-│         │                 │                 │                │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐  │
-│  │  pipewire   │  │     db      │  │       hid           │  │
-│  │  (runtime)  │  │  (SQLite)   │  │   (ALSA fallback)   │  │
-│  └─────────────┘  └─────────────┘  └─────────────────────┘  │
-└─────────────────────────────────────────────────────────────┘
-                            │
-                     Unix Socket IPC
-                            │
-┌─────────────────────────────────────────────────────────────┐
-│                      undertone-ui                            │
-│              Qt6/QML + Kirigami + cxx-qt                     │
-└─────────────────────────────────────────────────────────────┘
-```
+**undertone-daemon** (background service)
+- IPC Server (Unix socket) | Signal Handler | Event Loop (Tokio)
+- **undertone-core**: Channels, Mixer, App Routing, Profiles, State
+- **undertone-pipewire**: PipeWire graph management
+- **undertone-db**: SQLite persistence
+- **undertone-hid**: Wave:3 hardware (ALSA fallback)
+
+*Unix Socket IPC*
+
+**undertone-ui** (Qt6/QML + Kirigami + cxx-qt)
 
 ## Contributing
 
