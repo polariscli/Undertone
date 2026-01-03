@@ -154,12 +154,31 @@ QQC2.ApplicationWindow {
                     model: controller.profile_count
                     font.pixelSize: 12
 
-                    property int selectedIdx: 0
+                    // Find index of active profile
+                    function findActiveProfileIndex() {
+                        for (let i = 0; i < controller.profile_count; i++) {
+                            if (controller.profile_name(i) === controller.active_profile) {
+                                return i
+                            }
+                        }
+                        return 0
+                    }
 
-                    displayText: controller.profile_name(selectedIdx)
+                    currentIndex: findActiveProfileIndex()
+                    displayText: controller.active_profile
+
+                    // Update when active profile or profile count changes
+                    Connections {
+                        target: controller
+                        function onActive_profileChanged() {
+                            profileSelector.currentIndex = profileSelector.findActiveProfileIndex()
+                        }
+                        function onProfile_countChanged() {
+                            profileSelector.currentIndex = profileSelector.findActiveProfileIndex()
+                        }
+                    }
 
                     onActivated: (index) => {
-                        selectedIdx = index
                         controller.load_profile(controller.profile_name(index))
                     }
 

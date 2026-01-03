@@ -157,7 +157,21 @@ async fn run_ipc_loop(
 
                         // Handle events from daemon
                         Some(event) = client.events().recv() => {
-                            if let Some(update) = event_to_update(event) {
+                            // For profile/app changes, request full state refresh
+                            if matches!(event.event,
+                                undertone_ipc::events::EventType::ProfileChanged |
+                                undertone_ipc::events::EventType::AppDiscovered |
+                                undertone_ipc::events::EventType::AppRemoved
+                            ) {
+                                debug!("Refreshing state due to {:?} event", event.event);
+                                if let Ok(response) = client.request(Method::GetState).await {
+                                    if let Ok(value) = response.result {
+                                        if let Some(state_data) = parse_state_response(&value) {
+                                            let _ = update_tx.send(state_data).await;
+                                        }
+                                    }
+                                }
+                            } else if let Some(update) = event_to_update(event) {
                                 let _ = update_tx.send(update).await;
                             }
                         }
@@ -329,16 +343,30 @@ fn parse_state_response(value: &serde_json::Value) -> Option<IpcUpdate> {
         })
         .unwrap_or_default();
 
-    // Daemon doesn't send profiles array, just active_profile
-    // Create default profile list
+    // Parse active profile
     let active_profile = value
         .get("active_profile")
         .and_then(|v: &Value| v.as_str())
         .unwrap_or("Default")
         .to_string();
 
-    let profiles =
-        vec![ProfileData { name: active_profile.clone(), is_default: active_profile == "Default" }];
+    // Parse profiles array from daemon
+    let profiles = value
+        .get("profiles")
+        .and_then(|v| v.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|p| {
+                    let name = p.get("name")?.as_str()?.to_string();
+                    let is_default = p.get("is_default").and_then(|v| v.as_bool()).unwrap_or(false);
+                    Some(ProfileData { name, is_default })
+                })
+                .collect()
+        })
+        .unwrap_or_else(|| {
+            // Fallback if no profiles array
+            vec![ProfileData { name: active_profile.clone(), is_default: active_profile == "Default" }]
+        });
 
     let device_connected =
         value.get("device_connected").and_then(|v: &Value| v.as_bool()).unwrap_or(false);
