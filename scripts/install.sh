@@ -44,6 +44,7 @@ WP_CONF_DIR="$HOME/.config/wireplumber/wireplumber.conf.d"
 WP_SCRIPT_DIR="$HOME/.local/share/wireplumber/scripts"
 SYSTEMD_DIR="$HOME/.config/systemd/user"
 DATA_DIR="$HOME/.local/share/undertone"
+CONFIG_DIR="$HOME/.config/undertone"
 
 # Print functions
 print_header() {
@@ -596,6 +597,8 @@ install_service() {
     print_info "Installing systemd user service..."
 
     mkdir -p "$SYSTEMD_DIR"
+    # Create data and config directories (required by service's ReadWritePaths)
+    mkdir -p "$DATA_DIR" "$CONFIG_DIR"
     cp "$PROJECT_DIR/scripts/undertone-daemon.service" "$SYSTEMD_DIR/"
     systemctl --user daemon-reload
 
