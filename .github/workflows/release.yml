@@ -28,6 +28,7 @@ jobs:
             kf6-kirigami-devel \
             kf6-qqc2-desktop-style \
             clang \
+            mold \
             pkg-config \
             curl
 
