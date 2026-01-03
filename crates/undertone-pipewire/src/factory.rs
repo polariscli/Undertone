@@ -21,6 +21,10 @@ pub mod spa_props {
     pub const SPA_PROP_MUTE: u32 = 65540;
     /// Per-channel volumes array
     pub const SPA_PROP_CHANNEL_VOLUMES: u32 = 65544;
+    /// Monitor mute control (controls output/monitor ports of null-audio-sink)
+    pub const SPA_PROP_MONITOR_MUTE: u32 = 65548;
+    /// Monitor per-channel volumes (controls output/monitor ports of null-audio-sink)
+    pub const SPA_PROP_MONITOR_VOLUMES: u32 = 65549;
     /// Soft mute (software-based muting)
     pub const SPA_PROP_SOFT_MUTE: u32 = 65551;
     /// Soft volumes array (software-based volume)
@@ -68,6 +72,8 @@ pub enum FactoryRequest {
     DestroyNode(u32),
     /// Destroy a link by ID
     DestroyLink(u32),
+    /// Destroy all links between two nodes
+    DestroyLinksBetweenNodes { output_node: u32, input_node: u32 },
     /// Shutdown the factory
     Shutdown,
 }
@@ -87,6 +93,8 @@ pub enum FactoryResponse {
     NodeDestroyed { id: u32 },
     /// Link was destroyed
     LinkDestroyed { id: u32 },
+    /// Multiple links were destroyed
+    LinksDestroyed { count: usize },
     /// Operation failed
     Error(String),
 }
@@ -171,6 +179,10 @@ impl NodeFactory {
                 }
                 FactoryRequest::DestroyLink(id) => {
                     let _ = self.response_tx.send(FactoryResponse::LinkDestroyed { id });
+                }
+                FactoryRequest::DestroyLinksBetweenNodes { .. } => {
+                    // Not implemented in legacy path
+                    let _ = self.response_tx.send(FactoryResponse::LinksDestroyed { count: 0 });
                 }
                 FactoryRequest::Shutdown => {
                     info!("Factory received shutdown request");

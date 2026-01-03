@@ -194,13 +194,47 @@ impl PipeWireRuntime {
     /// This creates two links: one for the left channel (FL) and one for
     /// the right channel (FR). This is the common case for stereo audio routing.
     ///
-    /// For sink-to-sink routing, this links monitor ports (output) to
-    /// playback ports (input). PipeWire uses:
-    /// - "monitor_FL"/"monitor_FR" for monitor output ports
-    /// - "playback_FL"/"playback_FR" for playback input ports
+    /// Uses port discovery to find the correct port names, falling back to
+    /// standard PipeWire naming conventions if discovery fails.
     pub fn create_stereo_links(&self, output_node: u32, input_node: u32) -> PwResult<(u32, u32)> {
-        let left_id = self.create_link(output_node, "monitor_FL", input_node, "playback_FL")?;
-        let right_id = self.create_link(output_node, "monitor_FR", input_node, "playback_FR")?;
+        // Try to discover ports dynamically
+        let out_ports = self.graph.get_output_ports(output_node);
+        let in_ports = self.graph.get_input_ports(input_node);
+
+        // Find FL/FR ports by channel, or fall back to name-based matching
+        let out_fl = out_ports
+            .iter()
+            .find(|p| p.channel.as_deref() == Some("FL"))
+            .map(|p| p.name.as_str())
+            .unwrap_or("monitor_FL");
+        let out_fr = out_ports
+            .iter()
+            .find(|p| p.channel.as_deref() == Some("FR"))
+            .map(|p| p.name.as_str())
+            .unwrap_or("monitor_FR");
+        let in_fl = in_ports
+            .iter()
+            .find(|p| p.channel.as_deref() == Some("FL"))
+            .map(|p| p.name.as_str())
+            .unwrap_or("playback_FL");
+        let in_fr = in_ports
+            .iter()
+            .find(|p| p.channel.as_deref() == Some("FR"))
+            .map(|p| p.name.as_str())
+            .unwrap_or("playback_FR");
+
+        debug!(
+            output_node,
+            input_node,
+            out_fl,
+            out_fr,
+            in_fl,
+            in_fr,
+            "Creating stereo links with discovered ports"
+        );
+
+        let left_id = self.create_link(output_node, out_fl, input_node, in_fl)?;
+        let right_id = self.create_link(output_node, out_fr, input_node, in_fr)?;
         Ok((left_id, right_id))
     }
 
@@ -212,6 +246,23 @@ impl PipeWireRuntime {
 
         match self.factory_rx.recv_timeout(Duration::from_secs(5)) {
             Ok(FactoryResponse::LinkDestroyed { id: _ }) => Ok(()),
+            Ok(FactoryResponse::Error(e)) => Err(PwError::LinkCreationFailed(e)),
+            Ok(_) => Err(PwError::LinkCreationFailed("Unexpected response".to_string())),
+            Err(_) => Err(PwError::LinkCreationFailed("Timeout waiting for response".to_string())),
+        }
+    }
+
+    /// Destroy all links between two nodes.
+    ///
+    /// This is more reliable than destroy_link because it matches by node IDs
+    /// rather than link proxy IDs (which can differ from registry IDs).
+    pub fn destroy_links_between_nodes(&self, output_node: u32, input_node: u32) -> PwResult<usize> {
+        self.factory_tx
+            .send(FactoryRequest::DestroyLinksBetweenNodes { output_node, input_node })
+            .map_err(|_| PwError::MainLoopError("Factory channel closed".to_string()))?;
+
+        match self.factory_rx.recv_timeout(Duration::from_secs(5)) {
+            Ok(FactoryResponse::LinksDestroyed { count }) => Ok(count),
             Ok(FactoryResponse::Error(e)) => Err(PwError::LinkCreationFailed(e)),
             Ok(_) => Err(PwError::LinkCreationFailed("Unexpected response".to_string())),
             Err(_) => Err(PwError::LinkCreationFailed("Timeout waiting for response".to_string())),
@@ -485,7 +536,7 @@ impl PipeWireRuntime {
     ///
     /// Call this before switching to a new output device.
     pub fn unlink_monitor_from_output(&self, output_device_name: &str) -> PwResult<()> {
-        // Get monitor-mix
+        // Get monitor-mix using registry ID (from graph manager)
         let monitor_mix = self
             .graph
             .get_node_by_name("ut-monitor-mix")
@@ -495,14 +546,18 @@ impl PipeWireRuntime {
         let output_device = self.graph.get_node_by_name(output_device_name);
 
         if let Some(output) = output_device {
-            // Find and destroy links between monitor-mix and the output device
-            let links = self.graph.get_all_links();
-            for link in links {
-                if link.output_node == monitor_mix.id && link.input_node == output.id {
-                    info!(link_id = link.id, "Destroying monitor-mix to output link");
-                    self.destroy_link(link.id)?;
-                }
-            }
+            // Destroy all links between monitor-mix and the output device
+            // Use destroy_links_between_nodes which works with our stored proxy node IDs
+            // Note: The graph has registry IDs, but we created links with registry IDs
+            // (from graph lookups), so this should work.
+            info!(
+                monitor_mix_id = monitor_mix.id,
+                output_id = output.id,
+                output_name = %output_device_name,
+                "Destroying monitor-mix to output links"
+            );
+            let count = self.destroy_links_between_nodes(monitor_mix.id, output.id)?;
+            info!(count, "Destroyed links from monitor-mix to output");
         }
 
         Ok(())
@@ -804,14 +859,19 @@ fn run_pipewire_thread(
     let core_for_factory = core.clone();
 
     // Storage for created node proxies - must be kept alive to prevent node destruction
-    // Use HashMap to enable looking up nodes by ID for volume control
+    // Use HashMap to enable looking up nodes by ID for volume control and destruction
     let node_proxies: Rc<RefCell<HashMap<u32, pipewire::node::Node>>> =
         Rc::new(RefCell::new(HashMap::new()));
-    let link_proxies: Rc<RefCell<Vec<pipewire::link::Link>>> = Rc::new(RefCell::new(Vec::new()));
+    // Use HashMap for links, storing (proxy, output_node, input_node) to enable lookup by nodes
+    let link_proxies: Rc<RefCell<HashMap<u32, (pipewire::link::Link, u32, u32)>>> =
+        Rc::new(RefCell::new(HashMap::new()));
     let node_proxies_clone = Rc::clone(&node_proxies);
     let node_proxies_volume = Rc::clone(&node_proxies);
     let node_proxies_mute = Rc::clone(&node_proxies);
+    let node_proxies_destroy = Rc::clone(&node_proxies);
     let link_proxies_clone = Rc::clone(&link_proxies);
+    let link_proxies_destroy = Rc::clone(&link_proxies);
+    let link_proxies_destroy_by_nodes = Rc::clone(&link_proxies);
 
     // Attach factory request receiver to the loop
     let _factory_receiver = factory_rx.attach(main_loop.loop_(), move |request| match request {
@@ -879,10 +939,44 @@ fn run_pipewire_thread(
             }
         }
         FactoryRequest::DestroyNode(id) => {
-            let _ = factory_tx.send(FactoryResponse::NodeDestroyed { id });
+            let removed = node_proxies_destroy.borrow_mut().remove(&id);
+            if removed.is_some() {
+                debug!(id, "Node destroyed");
+                let _ = factory_tx.send(FactoryResponse::NodeDestroyed { id });
+            } else {
+                let _ = factory_tx.send(FactoryResponse::Error(format!("Node {} not found", id)));
+            }
         }
         FactoryRequest::DestroyLink(id) => {
-            let _ = factory_tx.send(FactoryResponse::LinkDestroyed { id });
+            let removed = link_proxies_destroy.borrow_mut().remove(&id);
+            if removed.is_some() {
+                // Link is destroyed when the proxy is dropped (no object.linger)
+                debug!(id, "Link destroyed");
+                let _ = factory_tx.send(FactoryResponse::LinkDestroyed { id });
+            } else {
+                let _ = factory_tx.send(FactoryResponse::Error(format!("Link {} not found", id)));
+            }
+        }
+        FactoryRequest::DestroyLinksBetweenNodes { output_node, input_node } => {
+            // Find and remove all links between the specified nodes
+            let mut proxies = link_proxies_destroy_by_nodes.borrow_mut();
+            let ids_to_remove: Vec<u32> = proxies
+                .iter()
+                .filter(|(_, (_, out_node, in_node))| {
+                    *out_node == output_node && *in_node == input_node
+                })
+                .map(|(id, _)| *id)
+                .collect();
+
+            let count = ids_to_remove.len();
+            for id in ids_to_remove {
+                // Link is destroyed when proxy is dropped (no object.linger)
+                proxies.remove(&id);
+                debug!(id, output_node, input_node, "Link destroyed by node match");
+            }
+
+            info!(count, output_node, input_node, "Destroyed links between nodes");
+            let _ = factory_tx.send(FactoryResponse::LinksDestroyed { count });
         }
         FactoryRequest::Shutdown => {
             info!("Factory received shutdown request");
@@ -916,8 +1010,9 @@ fn create_virtual_sink(
         "audio.channels" => props.channels.to_string().as_str(),
         "audio.position" => props.positions.as_str(),
         "undertone.managed" => "true",
-        "node.passive" => "true",
         "session.suspend-timeout-seconds" => "0",
+        // Prevent WirePlumber from auto-linking our nodes
+        "node.autoconnect" => "false",
     };
 
     let proxy = core
@@ -954,10 +1049,11 @@ fn create_volume_filter(
         "audio.position" => positions,
         "undertone.managed" => "true",
         "undertone.volume-filter" => "true",
-        "node.passive" => "true",
         "session.suspend-timeout-seconds" => "0",
         // Enable monitor channel volumes for volume control
         "monitor.channel-volumes" => "true",
+        // Prevent WirePlumber from auto-linking our nodes
+        "node.autoconnect" => "false",
     };
 
     let proxy = core
@@ -974,6 +1070,10 @@ fn create_volume_filter(
 }
 
 /// Set volume on a node using SPA Props.
+///
+/// Uses monitorVolumes (per-channel volume array for monitor/output ports) which is what
+/// controls the actual audio level flowing through null-audio-sink nodes.
+/// Audio flows: playback ports (IN) -> monitor ports (OUT), so we control monitor side.
 fn set_node_volume(
     proxies: &Rc<RefCell<HashMap<u32, pipewire::node::Node>>>,
     node_id: u32,
@@ -984,13 +1084,19 @@ fn set_node_volume(
         .get(&node_id)
         .ok_or_else(|| PwError::NodeNotFound(format!("Node {} not found in proxies", node_id)))?;
 
-    debug!(node_id, volume, "Setting node volume");
+    debug!(node_id, volume, "Setting node volume via monitorVolumes");
 
-    // Create a Props object with the volume property
+    // Create stereo monitor volumes array [left, right]
+    let monitor_volumes = Value::ValueArray(libspa::pod::ValueArray::Float(vec![volume, volume]));
+
+    // Create a Props object with monitorVolumes property
     let props_object = Value::Object(Object {
         type_: SpaTypes::ObjectParamProps.as_raw(),
         id: ParamType::Props.as_raw(),
-        properties: vec![Property::new(spa_props::SPA_PROP_VOLUME, Value::Float(volume))],
+        properties: vec![Property::new(
+            spa_props::SPA_PROP_MONITOR_VOLUMES,
+            monitor_volumes,
+        )],
     });
 
     // Serialize the object to a Pod
@@ -1009,11 +1115,14 @@ fn set_node_volume(
     // Set the param on the node
     node.set_param(ParamType::Props, 0, pod);
 
-    debug!(node_id, volume, "Volume set successfully");
+    debug!(node_id, volume, "Volume set successfully via monitorVolumes");
     Ok(())
 }
 
 /// Set mute state on a node using SPA Props.
+///
+/// Uses monitorMute which controls the mute state of the monitor/output ports.
+/// Audio flows: playback ports (IN) -> monitor ports (OUT), so we control monitor side.
 fn set_node_mute(
     proxies: &Rc<RefCell<HashMap<u32, pipewire::node::Node>>>,
     node_id: u32,
@@ -1024,13 +1133,13 @@ fn set_node_mute(
         .get(&node_id)
         .ok_or_else(|| PwError::NodeNotFound(format!("Node {} not found in proxies", node_id)))?;
 
-    debug!(node_id, muted, "Setting node mute");
+    debug!(node_id, muted, "Setting node monitorMute");
 
-    // Create a Props object with the mute property
+    // Create a Props object with the monitorMute property
     let props_object = Value::Object(Object {
         type_: SpaTypes::ObjectParamProps.as_raw(),
         id: ParamType::Props.as_raw(),
-        properties: vec![Property::new(spa_props::SPA_PROP_MUTE, Value::Bool(muted))],
+        properties: vec![Property::new(spa_props::SPA_PROP_MONITOR_MUTE, Value::Bool(muted))],
     });
 
     // Serialize the object to a Pod
@@ -1047,7 +1156,7 @@ fn set_node_mute(
     // Set the param on the node
     node.set_param(ParamType::Props, 0, pod);
 
-    debug!(node_id, muted, "Mute set successfully");
+    debug!(node_id, muted, "Mute set successfully via monitorMute");
     Ok(())
 }
 
@@ -1057,7 +1166,7 @@ fn create_link(
     output_port: &str,
     input_node: u32,
     input_port: &str,
-    proxies: &Rc<RefCell<Vec<pipewire::link::Link>>>,
+    proxies: &Rc<RefCell<HashMap<u32, (pipewire::link::Link, u32, u32)>>>,
 ) -> PwResult<u32> {
     info!(output_node, input_node, "Creating link");
 
@@ -1066,7 +1175,7 @@ fn create_link(
         "link.output.port" => output_port,
         "link.input.node" => input_node.to_string().as_str(),
         "link.input.port" => input_port,
-        "object.linger" => "true",
+        // Don't use object.linger so links are destroyed when proxy is dropped
     };
 
     let proxy = core
@@ -1076,8 +1185,8 @@ fn create_link(
     let id = proxy.upcast_ref().id();
     debug!(id, "Link created");
 
-    // Store the proxy to keep the link alive
-    proxies.borrow_mut().push(proxy);
+    // Store the proxy with node info to enable destruction by nodes
+    proxies.borrow_mut().insert(id, (proxy, output_node, input_node));
 
     Ok(id)
 }
