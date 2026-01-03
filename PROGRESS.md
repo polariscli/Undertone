@@ -1,7 +1,7 @@
 # Undertone Development Progress
 
 **Project**: Linux-native Elgato Wave:3 audio control application
-**License**: MIT / Apache-2.0 (Open Source)
+**License**: GPL-3.0
 **Started**: January 2026
 
 ---

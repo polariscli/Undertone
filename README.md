@@ -176,7 +176,7 @@ Contributions welcome! Please see [PROGRESS.md](PROGRESS.md) for current status 
 
 ## License
 
-MIT OR Apache-2.0
+GPL-3.0 - See [LICENSE](LICENSE) for details.
 
 ## Acknowledgments
 
