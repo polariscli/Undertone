@@ -17,7 +17,7 @@ Undertone gives you independent control over multiple audio channels with separa
 
 ## Screenshots
 
-_Coming soon_
+*Coming soon*
 
 ## Requirements
 
@@ -85,59 +85,52 @@ ut-ch-music (channel sink)
 
 ### Default App Routing
 
-| Pattern   | Channel |
-| --------- | ------- |
-| discord   | Voice   |
-| zoom      | Voice   |
-| teams     | Voice   |
-| spotify   | Music   |
-| rhythmbox | Music   |
-| firefox   | Browser |
-| chrome    | Browser |
-| steam     | Game    |
-| _default_ | System  |
+| Pattern    | Channel  |
+| ---------- | -------- |
+| discord    | Voice    |
+| zoom       | Voice    |
+| teams      | Voice    |
+| spotify    | Music    |
+| rhythmbox  | Music    |
+| firefox    | Browser  |
+| chrome     | Browser  |
+| steam      | Game     |
+| *default*  | System   |
 
 ## Usage
 
 ### Mixer Tab
-
 - Adjust volume sliders to control audio levels
 - Click mute button to silence a channel
 - Toggle between Stream and Monitor mix views
 - Use master volume for overall mix control
 
 ### Apps Tab
-
 - View currently playing audio applications
 - Click channel dropdown to reassign apps
 - Routes are automatically saved
 
 ### Device Tab
-
 - View Wave:3 connection status
 - Adjust microphone gain
 - Toggle mic mute
 
 ### Profiles
-
 - Click profile name in header to switch profiles
 - Use menu to save current settings or delete profiles
 
 ## Configuration
 
 Data is stored in `~/.local/share/undertone/`:
-
 - `undertone.db` - SQLite database with channels, routes, profiles
 - Logs via systemd journal when running as service
 
 WirePlumber configuration for Wave:3 naming:
-
 - `~/.config/wireplumber/wireplumber.conf.d/51-elgato.conf`
 
 ## Troubleshooting
 
 ### No audio from channels
-
 ```bash
 # Check if daemon is running
 pgrep undertone-daemon
@@ -150,7 +143,6 @@ pw-link -l | grep ut-
 ```
 
 ### App routing to wrong channel
-
 ```bash
 # Check database routes
 sqlite3 ~/.local/share/undertone/undertone.db "SELECT * FROM app_routes;"
@@ -160,7 +152,6 @@ pkill undertone-daemon && cargo run -p undertone-daemon
 ```
 
 ### UI not connecting
-
 ```bash
 # Check socket exists
 ls -la $XDG_RUNTIME_DIR/undertone/daemon.sock
@@ -174,17 +165,17 @@ echo '{"id":1,"method":{"type":"GetState"}}' | \
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                     undertone-daemon                        │
+│                     undertone-daemon                         │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐  │
 │  │ IPC Server  │  │   Signal    │  │   Event Loop        │  │
 │  │ (Unix Sock) │  │   Handler   │  │   (Tokio)           │  │
 │  └─────────────┘  └─────────────┘  └─────────────────────┘  │
-│                           │                                 │
+│                           │                                  │
 │  ┌───────────────────────────────────────────────────────┐  │
-│  │                  undertone-core                       │  │
+│  │                  undertone-core                        │  │
 │  │  Channels │ Mixer │ App Routing │ Profiles │ State    │  │
 │  └───────────────────────────────────────────────────────┘  │
-│         │                 │                 │               │
+│         │                 │                 │                │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐  │
 │  │  pipewire   │  │     db      │  │       hid           │  │
 │  │  (runtime)  │  │  (SQLite)   │  │   (ALSA fallback)   │  │
