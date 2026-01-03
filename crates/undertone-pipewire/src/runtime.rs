@@ -44,7 +44,10 @@ pub struct PipeWireRuntime {
 
 impl PipeWireRuntime {
     /// Spawn the PipeWire runtime and return a handle.
-    pub fn spawn(graph: Arc<GraphManager>) -> (Self, mpsc::Receiver<GraphEvent>) {
+    ///
+    /// # Errors
+    /// Returns an error if the PipeWire runtime thread cannot be spawned.
+    pub fn spawn(graph: Arc<GraphManager>) -> PwResult<(Self, mpsc::Receiver<GraphEvent>)> {
         let (event_tx, event_rx) = mpsc::channel(256);
         let (factory_tx, factory_internal_rx) = pipewire::channel::channel();
         let (factory_internal_tx, factory_rx) = std_mpsc::channel();
@@ -63,9 +66,9 @@ impl PipeWireRuntime {
                     error!(error = %e, "PipeWire runtime failed");
                 }
             })
-            .expect("Failed to spawn PipeWire runtime thread");
+            .map_err(|e| PwError::MainLoopError(format!("Failed to spawn runtime thread: {e}")))?;
 
-        (Self { factory_tx, factory_rx, graph }, event_rx)
+        Ok((Self { factory_tx, factory_rx, graph }, event_rx))
     }
 
     /// Create a virtual sink node.

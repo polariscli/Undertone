@@ -89,7 +89,8 @@ async fn main() -> Result<()> {
 
     // Spawn PipeWire runtime
     info!("Starting PipeWire runtime...");
-    let (pw_runtime, mut graph_event_rx) = PipeWireRuntime::spawn(Arc::clone(&graph));
+    let (pw_runtime, mut graph_event_rx) = PipeWireRuntime::spawn(Arc::clone(&graph))
+        .context("Failed to spawn PipeWire runtime")?;
 
     // Wait for PipeWire connection
     info!("Waiting for PipeWire connection...");
@@ -597,12 +598,12 @@ async fn main() -> Result<()> {
 
                             // Update in-memory routes
                             routes.retain(|r| r.pattern != app_pattern);
-                            let rule = RouteRule {
-                                pattern: app_pattern.clone(),
-                                pattern_type: PatternType::Exact,
-                                channel: channel.clone(),
-                                priority: 100,
-                            };
+                            let rule = RouteRule::new(
+                                app_pattern.clone(),
+                                PatternType::Exact,
+                                channel.clone(),
+                                100,
+                            );
                             routes.push(rule.clone());
                             info!(app_pattern = %app_pattern, channel = %channel, "App route set");
 

@@ -164,7 +164,14 @@ impl IpcServer {
 
                 // Send response to client
                 Some(response) = response_rx.recv() => {
-                    let json = serde_json::to_string(&response).unwrap() + "\n";
+                    let json = match serde_json::to_string(&response) {
+                        Ok(s) => s + "\n",
+                        Err(e) => {
+                            error!(client_id, error = %e, "Failed to serialize response");
+                            pending_requests = pending_requests.saturating_sub(1);
+                            continue;
+                        }
+                    };
                     if let Err(e) = writer.write_all(json.as_bytes()).await {
                         error!(client_id, error = %e, "Write error");
                         break;
@@ -185,7 +192,13 @@ impl IpcServer {
                     let clients = clients.read().await;
                     if let Some(handle) = clients.get(&client_id) {
                         if handle.subscriptions.contains(&event.event) || handle.subscriptions.is_empty() {
-                            let json = serde_json::to_string(&event).unwrap() + "\n";
+                            let json = match serde_json::to_string(&event) {
+                                Ok(s) => s + "\n",
+                                Err(e) => {
+                                    error!(client_id, error = %e, "Failed to serialize event");
+                                    continue;
+                                }
+                            };
                             if let Err(e) = writer.write_all(json.as_bytes()).await {
                                 error!(client_id, error = %e, "Event write error");
                                 break;

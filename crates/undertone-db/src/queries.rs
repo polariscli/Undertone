@@ -86,12 +86,12 @@ impl Database {
                     _ => PatternType::Exact,
                 };
 
-                Ok(RouteRule {
-                    pattern: row.get(0)?,
+                Ok(RouteRule::new(
+                    row.get(0)?,
                     pattern_type,
-                    channel: row.get(2)?,
-                    priority: row.get(3)?,
-                })
+                    row.get(2)?,
+                    row.get(3)?,
+                ))
             })?
             .collect::<Result<Vec<_>, _>>()?;
 
@@ -307,12 +307,12 @@ impl Database {
                     _ => PatternType::Exact,
                 };
 
-                Ok(RouteRule {
-                    pattern: row.get(0)?,
+                Ok(RouteRule::new(
+                    row.get(0)?,
                     pattern_type,
-                    channel: row.get(2)?,
-                    priority: row.get(3)?,
-                })
+                    row.get(2)?,
+                    row.get(3)?,
+                ))
             })?
             .collect::<Result<Vec<_>, _>>()?;
 
@@ -350,5 +350,258 @@ impl Database {
             .ok();
 
         Ok(name)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Database;
+    use undertone_core::mixer::MixerState;
+
+    fn test_db() -> Database {
+        Database::open_in_memory().expect("Failed to create test database")
+    }
+
+    #[test]
+    fn test_load_channels_returns_default_channels() {
+        let db = test_db();
+        let channels = db.load_channels().expect("Failed to load channels");
+
+        // Should have 5 default channels
+        assert_eq!(channels.len(), 5);
+
+        // Check channel names
+        let names: Vec<_> = channels.iter().map(|c| c.config.name.as_str()).collect();
+        assert!(names.contains(&"system"));
+        assert!(names.contains(&"voice"));
+        assert!(names.contains(&"music"));
+        assert!(names.contains(&"browser"));
+        assert!(names.contains(&"game"));
+    }
+
+    #[test]
+    fn test_save_and_load_channel_state() {
+        let db = test_db();
+
+        // Load initial channels
+        let channels = db.load_channels().expect("Failed to load channels");
+        let music_channel = channels.iter().find(|c| c.config.name == "music").unwrap();
+
+        // Modify and save
+        let mut modified = music_channel.clone();
+        modified.stream_volume = 0.5;
+        modified.stream_muted = true;
+        modified.monitor_volume = 0.75;
+        modified.monitor_muted = false;
+
+        db.save_channel_state("music", &modified).expect("Failed to save channel state");
+
+        // Reload and verify
+        let channels = db.load_channels().expect("Failed to reload channels");
+        let music_channel = channels.iter().find(|c| c.config.name == "music").unwrap();
+
+        assert!((music_channel.stream_volume - 0.5).abs() < 0.01);
+        assert!(music_channel.stream_muted);
+        assert!((music_channel.monitor_volume - 0.75).abs() < 0.01);
+        assert!(!music_channel.monitor_muted);
+    }
+
+    #[test]
+    fn test_load_routes_returns_default_routes() {
+        let db = test_db();
+        let routes = db.load_routes().expect("Failed to load routes");
+
+        // Should have default routes
+        assert!(!routes.is_empty());
+
+        // Check that some known routes exist
+        let discord_route = routes.iter().find(|r| r.pattern == "discord");
+        assert!(discord_route.is_some());
+        assert_eq!(discord_route.unwrap().channel, "voice");
+    }
+
+    #[test]
+    fn test_save_and_delete_route() {
+        let db = test_db();
+
+        // Create a new route
+        let rule = RouteRule::new("my-app".into(), PatternType::Exact, "music".into(), 200);
+        db.save_route(&rule).expect("Failed to save route");
+
+        // Verify it exists
+        let routes = db.load_routes().expect("Failed to load routes");
+        let my_route = routes.iter().find(|r| r.pattern == "my-app");
+        assert!(my_route.is_some());
+        assert_eq!(my_route.unwrap().priority, 200);
+
+        // Delete the route
+        db.delete_route("my-app").expect("Failed to delete route");
+
+        // Verify it's gone
+        let routes = db.load_routes().expect("Failed to load routes");
+        let my_route = routes.iter().find(|r| r.pattern == "my-app");
+        assert!(my_route.is_none());
+    }
+
+    #[test]
+    fn test_save_route_upsert() {
+        let db = test_db();
+
+        // Create a route
+        let rule = RouteRule::new("test-app".into(), PatternType::Exact, "music".into(), 100);
+        db.save_route(&rule).expect("Failed to save route");
+
+        // Update the same route with different values
+        let updated_rule = RouteRule::new("test-app".into(), PatternType::Prefix, "voice".into(), 150);
+        db.save_route(&updated_rule).expect("Failed to update route");
+
+        // Verify the update
+        let routes = db.load_routes().expect("Failed to load routes");
+        let test_route = routes.iter().find(|r| r.pattern == "test-app").unwrap();
+
+        assert_eq!(test_route.pattern_type, PatternType::Prefix);
+        assert_eq!(test_route.channel, "voice");
+        assert_eq!(test_route.priority, 150);
+    }
+
+    #[test]
+    fn test_list_profiles_has_default() {
+        let db = test_db();
+        let profiles = db.list_profiles().expect("Failed to list profiles");
+
+        // Should have the default profile
+        assert_eq!(profiles.len(), 1);
+        assert_eq!(profiles[0].name, "Default");
+        assert!(profiles[0].is_default);
+    }
+
+    #[test]
+    fn test_save_and_load_profile() {
+        let db = test_db();
+
+        // Create a profile
+        let profile = Profile {
+            name: "test-profile".into(),
+            description: Some("A test profile".into()),
+            is_default: false,
+            channels: vec![ProfileChannel {
+                name: "music".into(),
+                stream_volume: 0.8,
+                stream_muted: false,
+                monitor_volume: 0.6,
+                monitor_muted: true,
+            }],
+            routes: vec![RouteRule::new("custom-app".into(), PatternType::Exact, "music".into(), 100)],
+            mixer: MixerState::default(),
+        };
+
+        db.save_profile(&profile).expect("Failed to save profile");
+
+        // Load it back
+        let loaded = db.load_profile("test-profile").expect("Failed to load profile");
+        assert!(loaded.is_some());
+
+        let loaded = loaded.unwrap();
+        assert_eq!(loaded.name, "test-profile");
+        assert_eq!(loaded.description, Some("A test profile".into()));
+        assert!(!loaded.is_default);
+        assert_eq!(loaded.channels.len(), 1);
+        assert_eq!(loaded.routes.len(), 1);
+    }
+
+    #[test]
+    fn test_profile_not_found() {
+        let db = test_db();
+        let loaded = db.load_profile("nonexistent").expect("Failed to query profile");
+        assert!(loaded.is_none());
+    }
+
+    #[test]
+    fn test_delete_profile() {
+        let db = test_db();
+
+        // Create a profile
+        let profile = Profile {
+            name: "deleteme".into(),
+            description: None,
+            is_default: false,
+            channels: vec![],
+            routes: vec![],
+            mixer: MixerState::default(),
+        };
+        db.save_profile(&profile).expect("Failed to save profile");
+
+        // Verify it exists
+        let profiles = db.list_profiles().expect("Failed to list profiles");
+        assert!(profiles.iter().any(|p| p.name == "deleteme"));
+
+        // Delete it
+        let deleted = db.delete_profile("deleteme").expect("Failed to delete profile");
+        assert!(deleted);
+
+        // Verify it's gone
+        let profiles = db.list_profiles().expect("Failed to list profiles");
+        assert!(!profiles.iter().any(|p| p.name == "deleteme"));
+    }
+
+    #[test]
+    fn test_cannot_delete_default_profile() {
+        let db = test_db();
+
+        // Create a default profile
+        let profile = Profile {
+            name: "default".into(),
+            description: None,
+            is_default: true,
+            channels: vec![],
+            routes: vec![],
+            mixer: MixerState::default(),
+        };
+        db.save_profile(&profile).expect("Failed to save profile");
+
+        // Try to delete it
+        let deleted = db.delete_profile("default").expect("Failed to attempt delete");
+        assert!(!deleted); // Should return false
+
+        // Verify it still exists
+        let loaded = db.load_profile("default").expect("Failed to load profile");
+        assert!(loaded.is_some());
+    }
+
+    #[test]
+    fn test_log_event() {
+        let db = test_db();
+
+        // Should not fail
+        db.log_event("info", "test", "Test message", Some(r#"{"key": "value"}"#))
+            .expect("Failed to log event");
+
+        db.log_event("error", "test", "Error message", None)
+            .expect("Failed to log event without data");
+    }
+
+    #[test]
+    fn test_route_pattern_types() {
+        let db = test_db();
+
+        // Test all pattern types
+        let exact = RouteRule::new("exact-app".into(), PatternType::Exact, "music".into(), 100);
+        let prefix = RouteRule::new("prefix-app".into(), PatternType::Prefix, "voice".into(), 100);
+        let regex = RouteRule::new(r"regex-\d+".into(), PatternType::Regex, "game".into(), 100);
+
+        db.save_route(&exact).expect("Failed to save exact route");
+        db.save_route(&prefix).expect("Failed to save prefix route");
+        db.save_route(&regex).expect("Failed to save regex route");
+
+        let routes = db.load_routes().expect("Failed to load routes");
+
+        let exact_loaded = routes.iter().find(|r| r.pattern == "exact-app").unwrap();
+        let prefix_loaded = routes.iter().find(|r| r.pattern == "prefix-app").unwrap();
+        let regex_loaded = routes.iter().find(|r| r.pattern == r"regex-\d+").unwrap();
+
+        assert_eq!(exact_loaded.pattern_type, PatternType::Exact);
+        assert_eq!(prefix_loaded.pattern_type, PatternType::Prefix);
+        assert_eq!(regex_loaded.pattern_type, PatternType::Regex);
     }
 }

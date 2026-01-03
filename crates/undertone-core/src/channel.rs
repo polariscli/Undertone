@@ -38,6 +38,18 @@ impl ChannelConfig {
     pub fn node_name(&self) -> String {
         format!("ut-ch-{}", self.name)
     }
+
+    /// Get the PipeWire node name for this channel's stream volume filter.
+    #[must_use]
+    pub fn stream_vol_node_name(&self) -> String {
+        format!("ut-ch-{}-stream-vol", self.name)
+    }
+
+    /// Get the PipeWire node name for this channel's monitor volume filter.
+    #[must_use]
+    pub fn monitor_vol_node_name(&self) -> String {
+        format!("ut-ch-{}-monitor-vol", self.name)
+    }
 }
 
 /// Default system channels.

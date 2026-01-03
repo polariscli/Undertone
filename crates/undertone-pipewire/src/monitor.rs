@@ -98,15 +98,16 @@ impl GraphMonitor {
         // Set up registry listener
         let event_tx_global = self.event_tx.clone();
         let event_tx_remove = self.event_tx.clone();
-        let graph = Arc::clone(&self.graph);
+        let graph_add = Arc::clone(&self.graph);
+        let graph_remove = Arc::clone(&self.graph);
 
         let _listener = registry
             .add_listener_local()
             .global(move |global| {
-                Self::handle_global(&event_tx_global, &graph, &nodes, global);
+                Self::handle_global(&event_tx_global, &graph_add, &nodes, global);
             })
             .global_remove(move |id| {
-                Self::handle_global_remove(&event_tx_remove, &nodes_clone, id);
+                Self::handle_global_remove(&event_tx_remove, &graph_remove, &nodes_clone, id);
             })
             .register();
 
@@ -235,12 +236,16 @@ impl GraphMonitor {
 
     fn handle_global_remove(
         event_tx: &mpsc::Sender<GraphEvent>,
+        graph: &GraphManager,
         nodes: &Rc<RefCell<HashMap<u32, String>>>,
         id: u32,
     ) {
         // Check if this was a node we tracked
         if let Some(name) = nodes.borrow_mut().remove(&id) {
             debug!(id, name = %name, "Node removed");
+
+            // Remove from graph cache
+            graph.remove_node(id);
 
             // Check if Wave:3 was removed (by custom name or Elgato pattern)
             let is_wave3_source = name == "wave3-source"
@@ -254,7 +259,9 @@ impl GraphMonitor {
 
             let _ = event_tx.blocking_send(GraphEvent::NodeRemoved { id, name });
         } else {
-            // Could be a link or port
+            // Could be a link or port - remove from graph cache
+            graph.remove_port(id);
+            graph.remove_link(id);
             let _ = event_tx.blocking_send(GraphEvent::LinkRemoved { id });
         }
     }

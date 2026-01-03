@@ -25,6 +25,15 @@ impl HandleResult {
     fn err(error: ErrorInfo) -> Self {
         Self { response: Err(error), command: None }
     }
+
+    fn channel_not_found(channel: &str) -> Self {
+        Self::err(ErrorInfo::new(404, format!("Channel not found: {channel}")))
+    }
+}
+
+/// Check if a channel exists in the state.
+fn channel_exists(state: &StateSnapshot, channel: &str) -> bool {
+    state.channels.iter().any(|c| c.config.name == channel)
 }
 
 /// Handle an IPC request and return a response value with optional command.
@@ -72,14 +81,9 @@ pub fn handle_request(method: &Method, state: &StateSnapshot) -> HandleResult {
         })),
 
         Method::SetChannelVolume { channel, mix, volume } => {
-            // Validate channel exists
-            if !state.channels.iter().any(|c| &c.config.name == channel) {
-                return HandleResult::err(ErrorInfo::new(
-                    404,
-                    format!("Channel not found: {channel}"),
-                ));
+            if !channel_exists(state, channel) {
+                return HandleResult::channel_not_found(channel);
             }
-            // Clamp volume to valid range
             let volume = volume.clamp(0.0, 1.0);
             debug!(?channel, ?mix, volume, "Setting channel volume");
             HandleResult::ok_with_command(
@@ -89,12 +93,8 @@ pub fn handle_request(method: &Method, state: &StateSnapshot) -> HandleResult {
         }
 
         Method::SetChannelMute { channel, mix, muted } => {
-            // Validate channel exists
-            if !state.channels.iter().any(|c| &c.config.name == channel) {
-                return HandleResult::err(ErrorInfo::new(
-                    404,
-                    format!("Channel not found: {channel}"),
-                ));
+            if !channel_exists(state, channel) {
+                return HandleResult::channel_not_found(channel);
             }
             debug!(?channel, ?mix, muted, "Setting channel mute");
             HandleResult::ok_with_command(
@@ -121,12 +121,8 @@ pub fn handle_request(method: &Method, state: &StateSnapshot) -> HandleResult {
         }
 
         Method::SetAppRoute { app_pattern, channel } => {
-            // Validate channel exists
-            if !state.channels.iter().any(|c| &c.config.name == channel) {
-                return HandleResult::err(ErrorInfo::new(
-                    404,
-                    format!("Channel not found: {channel}"),
-                ));
+            if !channel_exists(state, channel) {
+                return HandleResult::channel_not_found(channel);
             }
             info!(?app_pattern, ?channel, "Setting app route");
             HandleResult::ok_with_command(
