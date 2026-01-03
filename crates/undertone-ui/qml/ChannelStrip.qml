@@ -106,29 +106,14 @@ Rectangle {
 
         // Mute button
         QQC2.Button {
-            Layout.fillWidth: true
-            Layout.preferredHeight: 28
-            text: channelStrip.muted ? "M" : "M"
-            font.pixelSize: 12
-            font.bold: true
+            Layout.alignment: Qt.AlignHCenter
+            Layout.preferredWidth: 36
+            Layout.preferredHeight: 36
             flat: true
+            icon.name: channelStrip.muted ? "audio-volume-muted" : "audio-volume-high"
+            icon.color: channelStrip.muted ? Kirigami.Theme.negativeTextColor : channelStrip.channelColor
 
             onClicked: channelStrip.muteToggled()
-
-            background: Rectangle {
-                color: channelStrip.muted ? Kirigami.Theme.negativeTextColor : Kirigami.Theme.backgroundColor
-                radius: 4
-                border.color: channelStrip.muted ? Kirigami.Theme.negativeTextColor : Kirigami.Theme.disabledTextColor
-                border.width: 1
-            }
-
-            contentItem: Text {
-                text: parent.text
-                font: parent.font
-                color: channelStrip.muted ? Kirigami.Theme.textColor : Kirigami.Theme.disabledTextColor
-                horizontalAlignment: Text.AlignHCenter
-                verticalAlignment: Text.AlignVCenter
-            }
         }
     }
 }
