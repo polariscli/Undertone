@@ -28,7 +28,21 @@ Undertone gives you independent control over multiple audio channels with separa
 
 ## Installation
 
+### Quick Install (Recommended)
+
+```bash
+curl -sSL https://raw.githubusercontent.com/polariscli/Undertone/main/scripts/install.sh | bash
+```
+
+This will:
+- Check and report missing dependencies
+- Clone the repository
+- Build from source
+- Install binaries, systemd service, udev rules, and WirePlumber config
+
 ### Dependencies
+
+The installer will check for these automatically, but you can install them manually:
 
 ```bash
 # Fedora
@@ -43,15 +57,20 @@ sudo apt install libpipewire-0.3-dev qt6-base-dev qt6-declarative-dev \
     clang libkf6kirigami-dev
 ```
 
-### Build
+You also need Rust 1.85+ (for Edition 2024):
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+
+### Manual Build
 
 ```bash
-git clone https://github.com/afterlike/undertone.git
-cd undertone
+git clone https://github.com/polariscli/Undertone.git
+cd Undertone
 cargo build --release
 ```
 
-### Run
+### Run (Development)
 
 ```bash
 # Start the daemon (required)
@@ -61,11 +80,26 @@ cargo run -p undertone-daemon --release
 cargo run -p undertone-ui --release
 ```
 
-### Install (optional)
+### Install Script Commands
 
 ```bash
-# Install binaries, systemd service, and udev rules
-./scripts/install.sh
+# Full installation
+./scripts/install.sh install
+
+# Uninstall completely
+./scripts/install.sh uninstall
+
+# Update to latest version
+./scripts/install.sh update
+
+# Check dependencies only
+./scripts/install.sh check
+
+# Service management
+./scripts/install.sh start|stop|enable|disable|status|logs
+
+# Install individual components
+./scripts/install.sh udev|wireplumber|service|build
 ```
 
 ## How It Works
