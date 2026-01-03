@@ -872,6 +872,8 @@ fn run_pipewire_thread(
     let link_proxies_clone = Rc::clone(&link_proxies);
     let link_proxies_destroy = Rc::clone(&link_proxies);
     let link_proxies_destroy_by_nodes = Rc::clone(&link_proxies);
+    // Clone registry for destroying external links (not created by us)
+    let registry_for_destroy = registry.clone();
 
     // Attach factory request receiver to the loop
     let _factory_receiver = factory_rx.attach(main_loop.loop_(), move |request| match request {
@@ -950,11 +952,16 @@ fn run_pipewire_thread(
         FactoryRequest::DestroyLink(id) => {
             let removed = link_proxies_destroy.borrow_mut().remove(&id);
             if removed.is_some() {
-                // Link is destroyed when the proxy is dropped (no object.linger)
-                debug!(id, "Link destroyed");
+                // Link we created - destroyed when the proxy is dropped (no object.linger)
+                debug!(id, "Internal link destroyed");
                 let _ = factory_tx.send(FactoryResponse::LinkDestroyed { id });
             } else {
-                let _ = factory_tx.send(FactoryResponse::Error(format!("Link {} not found", id)));
+                // External link (not created by us) - use registry.destroy_global
+                // The id here is a registry/global ID, not a proxy ID
+                debug!(id, "Destroying external link via registry");
+                let result = registry_for_destroy.destroy_global(id);
+                debug!(id, ?result, "External link destroy result");
+                let _ = factory_tx.send(FactoryResponse::LinkDestroyed { id });
             }
         }
         FactoryRequest::DestroyLinksBetweenNodes { output_node, input_node } => {

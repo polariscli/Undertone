@@ -243,7 +243,11 @@ async fn main() -> Result<()> {
                     }
                 }
             }
-            routes = profile.routes;
+            // Only replace routes if the profile has custom routes defined
+            // Otherwise, keep the global routes from app_routes table
+            if !profile.routes.is_empty() {
+                routes = profile.routes;
+            }
         }
     }
 
@@ -721,8 +725,10 @@ async fn main() -> Result<()> {
                                         }
                                     }
 
-                                    // Replace routes
-                                    routes = profile.routes;
+                                    // Replace routes only if profile has custom routes
+                                    if !profile.routes.is_empty() {
+                                        routes = profile.routes;
+                                    }
 
                                     // Apply mixer state (master volumes)
                                     mixer = profile.mixer.clone();
