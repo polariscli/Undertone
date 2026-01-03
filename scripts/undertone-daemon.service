@@ -26,6 +26,9 @@ ProtectControlGroups=true
 ReadWritePaths=%t/pipewire-0
 # Allow access to our own socket
 ReadWritePaths=%t/undertone
+# Allow access to config and data directories
+ReadWritePaths=%h/.config/undertone
+ReadWritePaths=%h/.local/share/undertone
 
 [Install]
 WantedBy=default.target
