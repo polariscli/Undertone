@@ -1,0 +1,127 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            artifact: undertone-linux-x86_64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libpipewire-0.3-dev \
+            qt6-base-dev \
+            qt6-declarative-dev \
+            libkf6kirigami-dev \
+            kf6-qqc2-desktop-style \
+            clang \
+            pkg-config
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Build
+        run: |
+          cargo build --release --target ${{ matrix.target }} \
+            -p undertone-daemon -p undertone-ui
+
+      - name: Package
+        run: |
+          mkdir -p dist
+          cp target/${{ matrix.target }}/release/undertone-daemon dist/
+          cp target/${{ matrix.target }}/release/undertone dist/
+          cp scripts/undertone-daemon.service dist/
+          cp scripts/99-elgato-wave3.rules dist/
+          cp -r scripts/wireplumber dist/
+          cp README.md LICENSE dist/
+          cd dist && tar -czvf ../${{ matrix.artifact }}.tar.gz *
+
+      - name: Generate checksum
+        run: sha256sum ${{ matrix.artifact }}.tar.gz > ${{ matrix.artifact }}.tar.gz.sha256
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: |
+            ${{ matrix.artifact }}.tar.gz
+            ${{ matrix.artifact }}.tar.gz.sha256
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Get version
+        id: version
+        run: echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Undertone ${{ steps.version.outputs.version }}
+          draft: false
+          prerelease: ${{ contains(github.ref, '-') }}
+          generate_release_notes: true
+          files: |
+            artifacts/*.tar.gz
+            artifacts/*.sha256
+          body: |
+            ## Installation
+
+            ### Quick Install (builds from source)
+            ```bash
+            curl -sSL https://raw.githubusercontent.com/polariscli/Undertone/main/scripts/install.sh | bash
+            ```
+
+            ### Pre-built Binary
+            ```bash
+            curl -sSL https://raw.githubusercontent.com/polariscli/Undertone/main/scripts/install.sh | bash -s -- install --binary
+            ```
+
+            ### Manual Installation
+            1. Download `undertone-linux-x86_64.tar.gz`
+            2. Extract: `tar -xzf undertone-linux-x86_64.tar.gz`
+            3. Copy binaries to `~/.cargo/bin/` or `/usr/local/bin/`
+            4. Install service: `cp undertone-daemon.service ~/.config/systemd/user/`
+            5. Install udev rules: `sudo cp 99-elgato-wave3.rules /etc/udev/rules.d/`
+            6. Install WirePlumber config to `~/.config/wireplumber/`
+
+            ## Requirements
+            - Linux with PipeWire
+            - Qt6 runtime libraries
+            - KDE Kirigami runtime
+
+            See [README](https://github.com/polariscli/Undertone#readme) for details.

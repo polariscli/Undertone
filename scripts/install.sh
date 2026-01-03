@@ -4,17 +4,20 @@
 #
 # Usage:
 #   curl -sSL https://raw.githubusercontent.com/polariscli/Undertone/main/scripts/install.sh | bash
+#   curl -sSL https://raw.githubusercontent.com/polariscli/Undertone/main/scripts/install.sh | bash -s -- install --binary
 #   curl -sSL https://raw.githubusercontent.com/polariscli/Undertone/main/scripts/install.sh | bash -s -- uninstall
 #
 # Or run locally:
-#   ./scripts/install.sh [command]
+#   ./scripts/install.sh [command] [options]
 
 set -e
 
 # Configuration
-REPO_URL="https://github.com/polariscli/Undertone.git"
+GITHUB_REPO="polariscli/Undertone"
+REPO_URL="https://github.com/${GITHUB_REPO}.git"
 INSTALL_DIR="${UNDERTONE_INSTALL_DIR:-$HOME/.local/share/undertone-src}"
 BIN_DIR="${UNDERTONE_BIN_DIR:-$HOME/.cargo/bin}"
+USE_BINARY=false
 
 # Colors (disabled if not a terminal)
 if [[ -t 1 ]]; then
@@ -61,6 +64,194 @@ print_error() {
 
 print_info() {
     echo -e "${CYAN}→${NC} $1"
+}
+
+# Get the latest release version from GitHub
+get_latest_release() {
+    local api_url="https://api.github.com/repos/${GITHUB_REPO}/releases/latest"
+
+    if command -v curl &>/dev/null; then
+        curl -sSL "$api_url" 2>/dev/null | grep -oP '"tag_name":\s*"\K[^"]+' | head -1
+    elif command -v wget &>/dev/null; then
+        wget -qO- "$api_url" 2>/dev/null | grep -oP '"tag_name":\s*"\K[^"]+' | head -1
+    else
+        return 1
+    fi
+}
+
+# Download and install pre-built binaries
+download_binary() {
+    local version="$1"
+    local arch="x86_64"
+    local artifact="undertone-linux-${arch}"
+    local download_url="https://github.com/${GITHUB_REPO}/releases/download/${version}/${artifact}.tar.gz"
+    local checksum_url="${download_url}.sha256"
+    local tmp_dir=$(mktemp -d)
+
+    print_info "Downloading Undertone ${version}..."
+
+    # Download archive
+    if command -v curl &>/dev/null; then
+        curl -sSL "$download_url" -o "$tmp_dir/undertone.tar.gz" || {
+            print_error "Failed to download release"
+            rm -rf "$tmp_dir"
+            return 1
+        }
+    elif command -v wget &>/dev/null; then
+        wget -q "$download_url" -O "$tmp_dir/undertone.tar.gz" || {
+            print_error "Failed to download release"
+            rm -rf "$tmp_dir"
+            return 1
+        }
+    else
+        print_error "curl or wget is required"
+        rm -rf "$tmp_dir"
+        return 1
+    fi
+
+    # Verify checksum if available
+    if command -v sha256sum &>/dev/null; then
+        print_info "Verifying checksum..."
+        local expected_checksum
+        if command -v curl &>/dev/null; then
+            expected_checksum=$(curl -sSL "$checksum_url" 2>/dev/null | awk '{print $1}')
+        else
+            expected_checksum=$(wget -qO- "$checksum_url" 2>/dev/null | awk '{print $1}')
+        fi
+
+        if [[ -n "$expected_checksum" ]]; then
+            local actual_checksum=$(sha256sum "$tmp_dir/undertone.tar.gz" | awk '{print $1}')
+            if [[ "$expected_checksum" != "$actual_checksum" ]]; then
+                print_error "Checksum verification failed!"
+                rm -rf "$tmp_dir"
+                return 1
+            fi
+            print_success "Checksum verified"
+        else
+            print_warning "Could not verify checksum (checksum file not found)"
+        fi
+    fi
+
+    # Extract
+    print_info "Extracting..."
+    tar -xzf "$tmp_dir/undertone.tar.gz" -C "$tmp_dir"
+
+    # Install binaries
+    print_info "Installing binaries to $BIN_DIR..."
+    mkdir -p "$BIN_DIR"
+    cp "$tmp_dir/undertone-daemon" "$BIN_DIR/"
+    cp "$tmp_dir/undertone" "$BIN_DIR/"
+    chmod +x "$BIN_DIR/undertone-daemon"
+    chmod +x "$BIN_DIR/undertone"
+
+    # Install service file
+    print_info "Installing systemd service..."
+    mkdir -p "$SYSTEMD_DIR"
+    cp "$tmp_dir/undertone-daemon.service" "$SYSTEMD_DIR/"
+    systemctl --user daemon-reload
+
+    # Install udev rules
+    print_info "Installing udev rules..."
+    if [[ "$EUID" -eq 0 ]]; then
+        cp "$tmp_dir/99-elgato-wave3.rules" "$UDEV_RULES"
+        udevadm control --reload-rules
+        udevadm trigger
+    else
+        sudo cp "$tmp_dir/99-elgato-wave3.rules" "$UDEV_RULES"
+        sudo udevadm control --reload-rules
+        sudo udevadm trigger
+    fi
+
+    # Install WirePlumber config
+    print_info "Installing WirePlumber configuration..."
+    mkdir -p "$WP_CONF_DIR"
+    mkdir -p "$WP_SCRIPT_DIR"
+    cp "$tmp_dir/wireplumber/51-elgato.conf" "$WP_CONF_DIR/"
+    cp "$tmp_dir/wireplumber/elgato_wave_3.lua" "$WP_SCRIPT_DIR/"
+
+    # Cleanup
+    rm -rf "$tmp_dir"
+
+    print_success "Binaries installed: undertone-daemon, undertone"
+
+    # Check if BIN_DIR is in PATH
+    if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
+        print_warning "$BIN_DIR is not in your PATH"
+        echo "  Add to your shell config:"
+        echo "    export PATH=\"\$HOME/.cargo/bin:\$PATH\""
+    fi
+
+    return 0
+}
+
+# Check runtime dependencies (for binary install)
+check_runtime_deps() {
+    print_header "Checking runtime dependencies..."
+    local missing=()
+
+    detect_os
+
+    # Check for PipeWire (runtime)
+    if ! command -v pipewire &>/dev/null && ! pgrep -x pipewire &>/dev/null; then
+        case "$OS_ID" in
+            fedora|rhel|centos) missing+=("pipewire") ;;
+            arch|manjaro|endeavouros) missing+=("pipewire") ;;
+            ubuntu|debian|linuxmint|pop) missing+=("pipewire") ;;
+            *) missing+=("pipewire") ;;
+        esac
+    else
+        print_success "PipeWire found"
+    fi
+
+    # Check for Qt6 runtime
+    if ! ldconfig -p 2>/dev/null | grep -q libQt6Core; then
+        case "$OS_ID" in
+            fedora|rhel|centos) missing+=("qt6-qtbase" "qt6-qtdeclarative") ;;
+            arch|manjaro|endeavouros) missing+=("qt6-base" "qt6-declarative") ;;
+            ubuntu|debian|linuxmint|pop) missing+=("qt6-base" "qt6-declarative") ;;
+            *) missing+=("qt6 (runtime)") ;;
+        esac
+    else
+        print_success "Qt6 runtime found"
+    fi
+
+    # Check for Kirigami runtime
+    if ! ldconfig -p 2>/dev/null | grep -q libKF6Kirigami; then
+        case "$OS_ID" in
+            fedora|rhel|centos) missing+=("kf6-kirigami" "kf6-qqc2-desktop-style") ;;
+            arch|manjaro|endeavouros) missing+=("kirigami") ;;
+            ubuntu|debian|linuxmint|pop) missing+=("kf6-kirigami" "qml6-module-org-kde-kirigami") ;;
+            *) missing+=("kirigami (runtime)") ;;
+        esac
+    else
+        print_success "Kirigami runtime found"
+    fi
+
+    if [[ ${#missing[@]} -gt 0 ]]; then
+        echo ""
+        print_warning "Missing runtime dependencies: ${missing[*]}"
+        echo ""
+
+        local install_cmd=""
+        case "$OS_ID" in
+            fedora|rhel|centos) install_cmd="sudo dnf install ${missing[*]}" ;;
+            arch|manjaro|endeavouros) install_cmd="sudo pacman -S ${missing[*]}" ;;
+            ubuntu|debian|linuxmint|pop) install_cmd="sudo apt install ${missing[*]}" ;;
+        esac
+
+        if [[ -n "$install_cmd" ]]; then
+            echo "Install with:"
+            echo "  $install_cmd"
+            echo ""
+        fi
+
+        return 1
+    fi
+
+    echo ""
+    print_success "All runtime dependencies satisfied"
+    echo ""
+    return 0
 }
 
 # Detect the source directory (git repo or installed location)
@@ -450,6 +641,55 @@ cmd_install() {
     print_header "╚══════════════════════════════════════╝"
     echo ""
 
+    if [[ "$USE_BINARY" == "true" ]]; then
+        # Binary installation - download pre-built release
+        check_runtime_deps || true  # Warn but continue
+
+        print_info "Fetching latest release..."
+        local version=$(get_latest_release)
+
+        if [[ -z "$version" ]]; then
+            print_error "No releases found. Falling back to source build."
+            print_info "Create a release by pushing a tag: git tag v0.1.0 && git push --tags"
+            echo ""
+            USE_BINARY=false
+        else
+            print_success "Found release: $version"
+            echo ""
+
+            print_header "Installing from pre-built binary..."
+            echo ""
+
+            if download_binary "$version"; then
+                echo ""
+                print_header "════════════════════════════════════════"
+                print_success "Installation complete!"
+                print_header "════════════════════════════════════════"
+                echo ""
+                echo "Next steps:"
+                echo ""
+                echo "  1. Restart WirePlumber (for Wave:3 support):"
+                echo "     ${CYAN}systemctl --user restart wireplumber${NC}"
+                echo ""
+                echo "  2. Start the daemon:"
+                echo "     ${CYAN}systemctl --user start undertone-daemon${NC}"
+                echo ""
+                echo "  3. Enable on login (optional):"
+                echo "     ${CYAN}systemctl --user enable undertone-daemon${NC}"
+                echo ""
+                echo "  4. Run the UI:"
+                echo "     ${CYAN}undertone${NC}"
+                echo ""
+                return 0
+            else
+                print_error "Binary installation failed. Falling back to source build."
+                echo ""
+                USE_BINARY=false
+            fi
+        fi
+    fi
+
+    # Source installation - build from git
     check_dependencies
     ensure_repo
 
@@ -587,10 +827,10 @@ show_help() {
     echo ""
     print_header "Undertone Installation Script"
     echo ""
-    echo "Usage: $0 [command]"
+    echo "Usage: $0 [command] [options]"
     echo ""
     echo "Commands:"
-    echo "  ${BOLD}install${NC}       Full installation (default)"
+    echo "  ${BOLD}install${NC}       Full installation (default, builds from source)"
     echo "  ${BOLD}uninstall${NC}     Remove Undertone completely"
     echo "  ${BOLD}update${NC}        Update to latest version"
     echo ""
@@ -609,8 +849,14 @@ show_help() {
     echo "  ${BOLD}check${NC}         Check dependencies only"
     echo "  ${BOLD}help${NC}          Show this help"
     echo ""
-    echo "Quick install:"
+    echo "Options:"
+    echo "  ${BOLD}--binary${NC}      Download pre-built binaries instead of building"
+    echo ""
+    echo "Quick install (from source):"
     echo "  curl -sSL https://raw.githubusercontent.com/polariscli/Undertone/main/scripts/install.sh | bash"
+    echo ""
+    echo "Quick install (pre-built binary):"
+    echo "  curl -sSL https://raw.githubusercontent.com/polariscli/Undertone/main/scripts/install.sh | bash -s -- --binary"
     echo ""
     echo "Environment variables:"
     echo "  UNDERTONE_INSTALL_DIR  Source directory (default: ~/.local/share/undertone-src)"
@@ -618,10 +864,34 @@ show_help() {
     echo ""
 }
 
+# Parse global options
+parse_options() {
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --binary|-b)
+                USE_BINARY=true
+                shift
+                ;;
+            *)
+                ARGS+=("$1")
+                shift
+                ;;
+        esac
+    done
+}
+
 # Main entry point
 main() {
+    local ARGS=()
+    parse_options "$@"
+    set -- "${ARGS[@]}"
+
     case "${1:-install}" in
-        install)
+        install|--binary)
+            # Handle bare --binary as install --binary
+            if [[ "$1" == "--binary" ]]; then
+                USE_BINARY=true
+            fi
             cmd_install
             ;;
         uninstall|remove)
