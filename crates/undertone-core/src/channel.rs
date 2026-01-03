@@ -33,19 +33,19 @@ impl ChannelConfig {
         }
     }
 
-    /// Get the PipeWire node name for this channel.
+    /// Get the `PipeWire` node name for this channel.
     #[must_use]
     pub fn node_name(&self) -> String {
         format!("ut-ch-{}", self.name)
     }
 
-    /// Get the PipeWire node name for this channel's stream volume filter.
+    /// Get the `PipeWire` node name for this channel's stream volume filter.
     #[must_use]
     pub fn stream_vol_node_name(&self) -> String {
         format!("ut-ch-{}-stream-vol", self.name)
     }
 
-    /// Get the PipeWire node name for this channel's monitor volume filter.
+    /// Get the `PipeWire` node name for this channel's monitor volume filter.
     #[must_use]
     pub fn monitor_vol_node_name(&self) -> String {
         format!("ut-ch-{}-monitor-vol", self.name)
@@ -53,6 +53,7 @@ impl ChannelConfig {
 }
 
 /// Default system channels.
+#[must_use]
 pub fn default_channels() -> Vec<ChannelConfig> {
     vec![
         ChannelConfig::system("system", "System", 0),
@@ -80,7 +81,7 @@ pub struct ChannelState {
     pub level_left: f32,
     /// Current audio level (right channel, 0.0 - 1.0)
     pub level_right: f32,
-    /// PipeWire node ID (if created)
+    /// `PipeWire` node ID (if created)
     pub node_id: Option<u32>,
 }
 

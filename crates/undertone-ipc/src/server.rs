@@ -5,7 +5,6 @@ use std::path::Path;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use futures::SinkExt;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::{UnixListener, UnixStream};
 use tokio::sync::{RwLock, broadcast, mpsc};
@@ -13,7 +12,7 @@ use tracing::{debug, error, info, warn};
 
 use crate::error::IpcResult;
 use crate::events::{Event, EventType};
-use crate::messages::{ErrorInfo, Method, Request, Response};
+use crate::messages::{Request, Response};
 
 /// IPC server that listens for client connections.
 pub struct IpcServer {
@@ -26,6 +25,7 @@ pub struct IpcServer {
 
 struct ClientHandle {
     subscriptions: Vec<EventType>,
+    #[allow(dead_code)] // Stored for potential future use
     response_tx: mpsc::Sender<Response>,
 }
 
@@ -190,8 +190,8 @@ impl IpcServer {
                 // Forward events to client (only if not at EOF)
                 Ok(event) = event_rx.recv(), if !client_eof => {
                     let clients = clients.read().await;
-                    if let Some(handle) = clients.get(&client_id) {
-                        if handle.subscriptions.contains(&event.event) || handle.subscriptions.is_empty() {
+                    if let Some(handle) = clients.get(&client_id)
+                        && (handle.subscriptions.contains(&event.event) || handle.subscriptions.is_empty()) {
                             let json = match serde_json::to_string(&event) {
                                 Ok(s) => s + "\n",
                                 Err(e) => {
@@ -204,7 +204,6 @@ impl IpcServer {
                                 break;
                             }
                         }
-                    }
                 }
             }
         }

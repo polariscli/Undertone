@@ -18,7 +18,6 @@ pub use events::{
 pub use messages::{Method, Request, Response};
 pub use server::IpcServer;
 
-use directories::ProjectDirs;
 use std::path::PathBuf;
 
 /// Get the default socket path.
@@ -26,6 +25,7 @@ use std::path::PathBuf;
 /// Uses `$XDG_RUNTIME_DIR/undertone/daemon.sock` or falls back to
 /// `/run/user/$UID/undertone/daemon.sock`.
 #[must_use]
+#[allow(unsafe_code)] // libc::getuid() is safe to call
 pub fn socket_path() -> PathBuf {
     if let Ok(runtime_dir) = std::env::var("XDG_RUNTIME_DIR") {
         PathBuf::from(runtime_dir).join("undertone/daemon.sock")

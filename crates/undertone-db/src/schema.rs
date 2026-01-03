@@ -1,7 +1,7 @@
 //! Database schema definition.
 
 /// Initial schema (version 1).
-pub const SCHEMA_V1: &str = r#"
+pub const SCHEMA_V1: &str = r"
 -- Schema version tracking
 CREATE TABLE IF NOT EXISTS schema_version (
     version INTEGER PRIMARY KEY,
@@ -92,10 +92,10 @@ CREATE TABLE IF NOT EXISTS event_log (
 CREATE INDEX IF NOT EXISTS idx_app_routes_pattern ON app_routes(pattern);
 CREATE INDEX IF NOT EXISTS idx_event_log_timestamp ON event_log(timestamp);
 CREATE INDEX IF NOT EXISTS idx_profiles_default ON profiles(is_default);
-"#;
+";
 
 /// Default data to insert after schema creation.
-pub const DEFAULT_DATA: &str = r#"
+pub const DEFAULT_DATA: &str = r"
 -- Default channels
 INSERT OR IGNORE INTO channels (name, display_name, icon, sort_order, is_system) VALUES
     ('system', 'System', 'audio-volume-high', 0, TRUE),
@@ -123,4 +123,4 @@ INSERT OR IGNORE INTO app_routes (pattern, pattern_type, channel_id, priority) V
 -- Default profile
 INSERT OR IGNORE INTO profiles (name, description, is_default) VALUES
     ('Default', 'Default mixer configuration', TRUE);
-"#;
+";

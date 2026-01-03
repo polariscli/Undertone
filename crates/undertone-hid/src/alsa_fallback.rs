@@ -3,7 +3,7 @@
 //! When direct HID control is not available, we can use ALSA mixer
 //! controls to adjust the Wave:3 microphone gain and mute state.
 
-use tracing::{debug, info, warn};
+use tracing::{debug, warn};
 
 use crate::error::{HidError, HidResult};
 

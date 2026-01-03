@@ -28,7 +28,7 @@ pub struct RouteRule {
     pub channel: String,
     /// Priority (higher = matched first)
     pub priority: i32,
-    /// Cached compiled regex (if pattern_type is Regex)
+    /// Cached compiled regex (if `pattern_type` is Regex)
     #[serde(skip)]
     compiled_regex: OnceLock<Option<regex::Regex>>,
 }
@@ -60,16 +60,15 @@ impl RouteRule {
             PatternType::Exact => app_name == self.pattern,
             PatternType::Prefix => app_name.starts_with(&self.pattern),
             PatternType::Regex => {
-                let regex = self.compiled_regex.get_or_init(|| {
-                    match regex::Regex::new(&self.pattern) {
+                let regex =
+                    self.compiled_regex.get_or_init(|| match regex::Regex::new(&self.pattern) {
                         Ok(re) => Some(re),
                         Err(e) => {
                             warn!(pattern = %self.pattern, error = %e, "Invalid regex pattern");
                             None
                         }
-                    }
-                });
-                regex.as_ref().map_or(false, |re| re.is_match(app_name))
+                    });
+                regex.as_ref().is_some_and(|re| re.is_match(app_name))
             }
         }
     }
@@ -78,9 +77,9 @@ impl RouteRule {
 /// An active application route.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppRoute {
-    /// PipeWire client/node ID
+    /// `PipeWire` client/node ID
     pub app_id: u32,
-    /// Application name (from PipeWire properties)
+    /// Application name (from `PipeWire` properties)
     pub app_name: String,
     /// Binary name (for persistent routing)
     pub binary_name: Option<String>,
@@ -126,6 +125,7 @@ pub fn find_channel_for_app(
 }
 
 /// Default routing rules for common applications.
+#[must_use]
 pub fn default_routes() -> Vec<RouteRule> {
     vec![
         // Voice chat applications
@@ -215,7 +215,7 @@ mod tests {
 
     #[test]
     fn test_find_channel_exact_before_prefix() {
-        let rules = vec![
+        let _rules = [
             RouteRule::new("spotify".into(), PatternType::Prefix, "prefix-match".into(), 100),
             RouteRule::new("spotify".into(), PatternType::Exact, "exact-match".into(), 100),
         ];
@@ -233,24 +233,18 @@ mod tests {
 
     #[test]
     fn test_find_channel_fallback_to_system() {
-        let rules = vec![
-            RouteRule::new("known-app".into(), PatternType::Exact, "music".into(), 100),
-        ];
+        let rules =
+            vec![RouteRule::new("known-app".into(), PatternType::Exact, "music".into(), 100)];
 
         assert_eq!(find_channel_for_app("unknown-app", None, &rules), "system");
     }
 
     #[test]
     fn test_find_channel_binary_name_fallback() {
-        let rules = vec![
-            RouteRule::new("spotify".into(), PatternType::Exact, "music".into(), 100),
-        ];
+        let rules = vec![RouteRule::new("spotify".into(), PatternType::Exact, "music".into(), 100)];
 
         // App name doesn't match, but binary name does
-        assert_eq!(
-            find_channel_for_app("Spotify Music Player", Some("spotify"), &rules),
-            "music"
-        );
+        assert_eq!(find_channel_for_app("Spotify Music Player", Some("spotify"), &rules), "music");
     }
 
     #[test]
@@ -261,10 +255,7 @@ mod tests {
         ];
 
         // App name matches "spotify", so binary name is ignored
-        assert_eq!(
-            find_channel_for_app("spotify", Some("media-player"), &rules),
-            "music"
-        );
+        assert_eq!(find_channel_for_app("spotify", Some("media-player"), &rules), "music");
     }
 
     #[test]

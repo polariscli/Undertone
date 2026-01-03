@@ -1,8 +1,8 @@
-//! PipeWire error types.
+//! `PipeWire` error types.
 
 use thiserror::Error;
 
-/// PipeWire error type.
+/// `PipeWire` error type.
 #[derive(Debug, Error)]
 pub enum PwError {
     #[error("PipeWire connection failed: {0}")]
@@ -33,5 +33,5 @@ pub enum PwError {
     VolumeControlFailed(String),
 }
 
-/// Result type for PipeWire operations.
+/// Result type for `PipeWire` operations.
 pub type PwResult<T> = Result<T, PwError>;

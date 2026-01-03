@@ -37,7 +37,7 @@ impl Reconciler {
 
     /// Compute actions needed to reach desired state.
     ///
-    /// This compares the current PipeWire graph state against what
+    /// This compares the current `PipeWire` graph state against what
     /// we expect to exist and returns a list of actions to take.
     #[must_use]
     pub fn reconcile(&self, channels: &[ChannelConfig]) -> Vec<ReconcileAction> {
@@ -111,43 +111,41 @@ impl Reconciler {
             // Check stream volume → stream mix link
             if let (Some(vol_node), Some(mix_node)) =
                 (self.graph.get_node_by_name(&stream_vol_name), stream_mix.as_ref())
+                && !self.graph.has_link(vol_node.id, mix_node.id)
             {
-                if !self.graph.has_link(vol_node.id, mix_node.id) {
-                    info!(from = %stream_vol_name, to = "ut-stream-mix", "Link missing");
-                    actions.push(ReconcileAction::CreateLink {
-                        output_node: stream_vol_name.clone(),
-                        output_port: "monitor_FL".to_string(),
-                        input_node: "ut-stream-mix".to_string(),
-                        input_port: "playback_FL".to_string(),
-                    });
-                    actions.push(ReconcileAction::CreateLink {
-                        output_node: stream_vol_name,
-                        output_port: "monitor_FR".to_string(),
-                        input_node: "ut-stream-mix".to_string(),
-                        input_port: "playback_FR".to_string(),
-                    });
-                }
+                info!(from = %stream_vol_name, to = "ut-stream-mix", "Link missing");
+                actions.push(ReconcileAction::CreateLink {
+                    output_node: stream_vol_name.clone(),
+                    output_port: "monitor_FL".to_string(),
+                    input_node: "ut-stream-mix".to_string(),
+                    input_port: "playback_FL".to_string(),
+                });
+                actions.push(ReconcileAction::CreateLink {
+                    output_node: stream_vol_name,
+                    output_port: "monitor_FR".to_string(),
+                    input_node: "ut-stream-mix".to_string(),
+                    input_port: "playback_FR".to_string(),
+                });
             }
 
             // Check monitor volume → monitor mix link
             if let (Some(vol_node), Some(mix_node)) =
                 (self.graph.get_node_by_name(&monitor_vol_name), monitor_mix.as_ref())
+                && !self.graph.has_link(vol_node.id, mix_node.id)
             {
-                if !self.graph.has_link(vol_node.id, mix_node.id) {
-                    info!(from = %monitor_vol_name, to = "ut-monitor-mix", "Link missing");
-                    actions.push(ReconcileAction::CreateLink {
-                        output_node: monitor_vol_name.clone(),
-                        output_port: "monitor_FL".to_string(),
-                        input_node: "ut-monitor-mix".to_string(),
-                        input_port: "playback_FL".to_string(),
-                    });
-                    actions.push(ReconcileAction::CreateLink {
-                        output_node: monitor_vol_name,
-                        output_port: "monitor_FR".to_string(),
-                        input_node: "ut-monitor-mix".to_string(),
-                        input_port: "playback_FR".to_string(),
-                    });
-                }
+                info!(from = %monitor_vol_name, to = "ut-monitor-mix", "Link missing");
+                actions.push(ReconcileAction::CreateLink {
+                    output_node: monitor_vol_name.clone(),
+                    output_port: "monitor_FL".to_string(),
+                    input_node: "ut-monitor-mix".to_string(),
+                    input_port: "playback_FL".to_string(),
+                });
+                actions.push(ReconcileAction::CreateLink {
+                    output_node: monitor_vol_name,
+                    output_port: "monitor_FR".to_string(),
+                    input_node: "ut-monitor-mix".to_string(),
+                    input_port: "playback_FR".to_string(),
+                });
             }
         }
 
@@ -155,41 +153,40 @@ impl Reconciler {
         // Stream mix → Stream output (for OBS capture)
         if let (Some(stream_mix_node), Some(stream_out)) =
             (stream_mix.as_ref(), self.graph.get_node_by_name("ut-stream-out"))
+            && !self.graph.has_link(stream_mix_node.id, stream_out.id)
         {
-            if !self.graph.has_link(stream_mix_node.id, stream_out.id) {
-                info!(from = "ut-stream-mix", to = "ut-stream-out", "Link missing");
-                actions.push(ReconcileAction::CreateLink {
-                    output_node: "ut-stream-mix".to_string(),
-                    output_port: "monitor_FL".to_string(),
-                    input_node: "ut-stream-out".to_string(),
-                    input_port: "playback_FL".to_string(),
-                });
-                actions.push(ReconcileAction::CreateLink {
-                    output_node: "ut-stream-mix".to_string(),
-                    output_port: "monitor_FR".to_string(),
-                    input_node: "ut-stream-out".to_string(),
-                    input_port: "playback_FR".to_string(),
-                });
-            }
+            info!(from = "ut-stream-mix", to = "ut-stream-out", "Link missing");
+            actions.push(ReconcileAction::CreateLink {
+                output_node: "ut-stream-mix".to_string(),
+                output_port: "monitor_FL".to_string(),
+                input_node: "ut-stream-out".to_string(),
+                input_port: "playback_FL".to_string(),
+            });
+            actions.push(ReconcileAction::CreateLink {
+                output_node: "ut-stream-mix".to_string(),
+                output_port: "monitor_FR".to_string(),
+                input_node: "ut-stream-out".to_string(),
+                input_port: "playback_FR".to_string(),
+            });
         }
 
         // Monitor mix → Wave:3 sink (headphones)
-        if let (Some(monitor_mix_node), Some(wave3)) = (monitor_mix.as_ref(), wave3_sink) {
-            if !self.graph.has_link(monitor_mix_node.id, wave3.id) {
-                info!(from = "ut-monitor-mix", to = %wave3.name, "Link missing");
-                actions.push(ReconcileAction::CreateLink {
-                    output_node: "ut-monitor-mix".to_string(),
-                    output_port: "monitor_FL".to_string(),
-                    input_node: wave3.name.clone(),
-                    input_port: "playback_FL".to_string(),
-                });
-                actions.push(ReconcileAction::CreateLink {
-                    output_node: "ut-monitor-mix".to_string(),
-                    output_port: "monitor_FR".to_string(),
-                    input_node: wave3.name,
-                    input_port: "playback_FR".to_string(),
-                });
-            }
+        if let (Some(monitor_mix_node), Some(wave3)) = (monitor_mix.as_ref(), wave3_sink)
+            && !self.graph.has_link(monitor_mix_node.id, wave3.id)
+        {
+            info!(from = "ut-monitor-mix", to = %wave3.name, "Link missing");
+            actions.push(ReconcileAction::CreateLink {
+                output_node: "ut-monitor-mix".to_string(),
+                output_port: "monitor_FL".to_string(),
+                input_node: wave3.name.clone(),
+                input_port: "playback_FL".to_string(),
+            });
+            actions.push(ReconcileAction::CreateLink {
+                output_node: "ut-monitor-mix".to_string(),
+                output_port: "monitor_FR".to_string(),
+                input_node: wave3.name,
+                input_port: "playback_FR".to_string(),
+            });
         }
 
         actions

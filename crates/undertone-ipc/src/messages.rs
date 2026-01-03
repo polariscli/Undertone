@@ -108,7 +108,7 @@ pub enum Method {
     // System
     /// Request graceful shutdown
     Shutdown,
-    /// Force reconciliation of PipeWire state
+    /// Force reconciliation of `PipeWire` state
     Reconcile,
 }
 
@@ -204,10 +204,7 @@ mod tests {
     fn test_request_set_app_route() {
         let request = Request {
             id: 5,
-            method: Method::SetAppRoute {
-                app_pattern: "spotify".into(),
-                channel: "music".into(),
-            },
+            method: Method::SetAppRoute { app_pattern: "spotify".into(), channel: "music".into() },
         };
 
         let parsed = roundtrip_request(&request);
@@ -221,10 +218,7 @@ mod tests {
 
     #[test]
     fn test_request_save_profile() {
-        let request = Request {
-            id: 6,
-            method: Method::SaveProfile { name: "my-profile".into() },
-        };
+        let request = Request { id: 6, method: Method::SaveProfile { name: "my-profile".into() } };
 
         let parsed = roundtrip_request(&request);
         if let Method::SaveProfile { name } = parsed.method {
@@ -238,9 +232,7 @@ mod tests {
     fn test_request_subscribe() {
         let request = Request {
             id: 7,
-            method: Method::Subscribe {
-                events: vec!["VolumeChanged".into(), "AppRouted".into()],
-            },
+            method: Method::Subscribe { events: vec!["VolumeChanged".into(), "AppRouted".into()] },
         };
 
         let parsed = roundtrip_request(&request);
@@ -263,10 +255,8 @@ mod tests {
 
     #[test]
     fn test_response_success() {
-        let response = Response {
-            id: 1,
-            result: Ok(serde_json::json!({"success": true, "volume": 0.5})),
-        };
+        let response =
+            Response { id: 1, result: Ok(serde_json::json!({"success": true, "volume": 0.5})) };
         let json = serde_json::to_string(&response).unwrap();
 
         assert!(json.contains(r#""success":true"#));
@@ -282,14 +272,12 @@ mod tests {
 
     #[test]
     fn test_response_error() {
-        let response = Response {
-            id: 2,
-            result: Err(ErrorInfo::new(404, "Channel not found: unknown")),
-        };
+        let response =
+            Response { id: 2, result: Err(ErrorInfo::new(404, "Channel not found: unknown")) };
         let json = serde_json::to_string(&response).unwrap();
 
         assert!(json.contains(r#""code":404"#));
-        assert!(json.contains(r#"Channel not found"#));
+        assert!(json.contains(r"Channel not found"));
 
         let parsed = roundtrip_response(&response);
         assert_eq!(parsed.id, 2);
@@ -365,13 +353,15 @@ mod tests {
     fn test_response_from_json_string() {
         // Test successful response
         let ok_json = r#"{"id":1,"result":{"Ok":{"channels":[{"name":"music"}]}}}"#;
-        let response: Response = serde_json::from_str(ok_json).expect("Failed to parse OK response");
+        let response: Response =
+            serde_json::from_str(ok_json).expect("Failed to parse OK response");
         assert_eq!(response.id, 1);
         assert!(response.result.is_ok());
 
         // Test error response
         let err_json = r#"{"id":2,"result":{"Err":{"code":404,"message":"Not found"}}}"#;
-        let response: Response = serde_json::from_str(err_json).expect("Failed to parse error response");
+        let response: Response =
+            serde_json::from_str(err_json).expect("Failed to parse error response");
         assert_eq!(response.id, 2);
         assert!(response.result.is_err());
     }

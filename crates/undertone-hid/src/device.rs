@@ -1,6 +1,6 @@
 //! Wave:3 device detection and control.
 
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
 
 use crate::error::{HidError, HidResult};
 
@@ -52,9 +52,8 @@ impl Wave3Device {
         };
 
         for device in devices.iter() {
-            let desc = match device.device_descriptor() {
-                Ok(d) => d,
-                Err(_) => continue,
+            let Ok(desc) = device.device_descriptor() else {
+                continue;
             };
 
             if desc.vendor_id() == ELGATO_VID && desc.product_id() == WAVE3_PID {
@@ -109,10 +108,10 @@ impl Wave3Device {
         for line in cards.lines() {
             if line.contains("Wave:3") || line.contains("Wave 3") {
                 // Extract card number from line like " 2 [Wave3          ]: USB-Audio - Wave:3"
-                if let Some(num) = line.trim().split_whitespace().next() {
-                    if let Ok(card_num) = num.parse::<u32>() {
-                        return Ok(Some(format!("hw:{card_num}")));
-                    }
+                if let Some(num) = line.split_whitespace().next()
+                    && let Ok(card_num) = num.parse::<u32>()
+                {
+                    return Ok(Some(format!("hw:{card_num}")));
                 }
             }
         }
@@ -131,16 +130,16 @@ impl Wave3Device {
 /// Check if a Wave:3 device is currently connected.
 #[must_use]
 pub fn is_wave3_connected() -> bool {
-    let devices = match rusb::devices() {
-        Ok(d) => d,
-        Err(_) => return false,
+    let Ok(devices) = rusb::devices() else {
+        return false;
     };
 
     for device in devices.iter() {
-        if let Ok(desc) = device.device_descriptor() {
-            if desc.vendor_id() == ELGATO_VID && desc.product_id() == WAVE3_PID {
-                return true;
-            }
+        if let Ok(desc) = device.device_descriptor()
+            && desc.vendor_id() == ELGATO_VID
+            && desc.product_id() == WAVE3_PID
+        {
+            return true;
         }
     }
 

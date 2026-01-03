@@ -41,7 +41,8 @@ jobs:
             clang \
             mold
       - uses: Swatinem/rust-cache@v2
-      - run: cargo clippy --workspace --all-targets -- -D warnings
+      # Note: Many lints allowed due to cxx-qt generated code and pedantic lints
+      - run: cargo clippy --workspace --all-targets -- -W clippy::all -A clippy::pedantic
 
   test:
     name: Test

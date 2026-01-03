@@ -57,9 +57,9 @@ impl Database {
                 updated_at = datetime('now')
               WHERE channel_id = (SELECT id FROM channels WHERE name = ?)",
             params![
-                state.stream_volume as f64,
+                f64::from(state.stream_volume),
                 state.stream_muted,
-                state.monitor_volume as f64,
+                f64::from(state.monitor_volume),
                 state.monitor_muted,
                 channel_name,
             ],
@@ -86,12 +86,7 @@ impl Database {
                     _ => PatternType::Exact,
                 };
 
-                Ok(RouteRule::new(
-                    row.get(0)?,
-                    pattern_type,
-                    row.get(2)?,
-                    row.get(3)?,
-                ))
+                Ok(RouteRule::new(row.get(0)?, pattern_type, row.get(2)?, row.get(3)?))
             })?
             .collect::<Result<Vec<_>, _>>()?;
 
@@ -206,9 +201,9 @@ impl Database {
                     params![
                         profile_id,
                         ch_id,
-                        channel.stream_volume as f64,
+                        f64::from(channel.stream_volume),
                         channel.stream_muted,
-                        channel.monitor_volume as f64,
+                        f64::from(channel.monitor_volume),
                         channel.monitor_muted,
                     ],
                 )?;
@@ -307,12 +302,7 @@ impl Database {
                     _ => PatternType::Exact,
                 };
 
-                Ok(RouteRule::new(
-                    row.get(0)?,
-                    pattern_type,
-                    row.get(2)?,
-                    row.get(3)?,
-                ))
+                Ok(RouteRule::new(row.get(0)?, pattern_type, row.get(2)?, row.get(3)?))
             })?
             .collect::<Result<Vec<_>, _>>()?;
 
@@ -453,7 +443,8 @@ mod tests {
         db.save_route(&rule).expect("Failed to save route");
 
         // Update the same route with different values
-        let updated_rule = RouteRule::new("test-app".into(), PatternType::Prefix, "voice".into(), 150);
+        let updated_rule =
+            RouteRule::new("test-app".into(), PatternType::Prefix, "voice".into(), 150);
         db.save_route(&updated_rule).expect("Failed to update route");
 
         // Verify the update
@@ -492,7 +483,12 @@ mod tests {
                 monitor_volume: 0.6,
                 monitor_muted: true,
             }],
-            routes: vec![RouteRule::new("custom-app".into(), PatternType::Exact, "music".into(), 100)],
+            routes: vec![RouteRule::new(
+                "custom-app".into(),
+                PatternType::Exact,
+                "music".into(),
+                100,
+            )],
             mixer: MixerState::default(),
         };
 

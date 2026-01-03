@@ -1,4 +1,4 @@
-//! PipeWire node factory for creating virtual sinks and sources.
+//! `PipeWire` node factory for creating virtual sinks and sources.
 //!
 //! This module provides functions to create virtual audio nodes that Undertone
 //! uses for channel mixing and routing.
@@ -99,9 +99,9 @@ pub enum FactoryResponse {
     Error(String),
 }
 
-/// Factory thread for creating PipeWire objects.
+/// Factory thread for creating `PipeWire` objects.
 ///
-/// This runs in the same thread as the monitor since PipeWire objects
+/// This runs in the same thread as the monitor since `PipeWire` objects
 /// must be created on the same thread as the main loop.
 pub struct NodeFactory {
     request_rx: std_mpsc::Receiver<FactoryRequest>,
@@ -110,6 +110,7 @@ pub struct NodeFactory {
 
 impl NodeFactory {
     /// Create a new node factory.
+    #[must_use]
     pub fn new(
         request_rx: std_mpsc::Receiver<FactoryRequest>,
         response_tx: std_mpsc::Sender<FactoryResponse>,
@@ -117,10 +118,10 @@ impl NodeFactory {
         Self { request_rx, response_tx }
     }
 
-    /// Process pending requests (called from PipeWire main loop)
+    /// Process pending requests (called from `PipeWire` main loop)
     ///
-    /// Note: This method is used by the legacy NodeFactory pattern.
-    /// The PipeWireRuntime uses its own handlers in runtime.rs.
+    /// Note: This method is used by the legacy `NodeFactory` pattern.
+    /// The `PipeWireRuntime` uses its own handlers in runtime.rs.
     pub fn process_requests(&self, core: &Core) {
         while let Ok(request) = self.request_rx.try_recv() {
             match request {
@@ -253,6 +254,7 @@ impl NodeFactory {
 }
 
 /// Create a channel pair for factory communication
+#[must_use]
 pub fn create_factory_channel() -> (
     std_mpsc::Sender<FactoryRequest>,
     std_mpsc::Receiver<FactoryResponse>,

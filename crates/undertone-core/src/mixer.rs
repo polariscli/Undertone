@@ -26,6 +26,7 @@ impl MixType {
 
 /// State of the overall mixer.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct MixerState {
     /// Master volume for stream mix
     pub stream_master_volume: f32,

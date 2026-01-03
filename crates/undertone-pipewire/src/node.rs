@@ -1,12 +1,12 @@
-//! PipeWire node management.
+//! `PipeWire` node management.
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-/// Information about a PipeWire node.
+/// Information about a `PipeWire` node.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NodeInfo {
-    /// PipeWire object ID
+    /// `PipeWire` object ID
     pub id: u32,
     /// Node name
     pub name: String,
@@ -30,13 +30,13 @@ impl NodeInfo {
     /// Check if this is an audio sink.
     #[must_use]
     pub fn is_sink(&self) -> bool {
-        self.media_class.as_ref().map_or(false, |c| c.contains("Sink"))
+        self.media_class.as_ref().is_some_and(|c| c.contains("Sink"))
     }
 
     /// Check if this is an audio source.
     #[must_use]
     pub fn is_source(&self) -> bool {
-        self.media_class.as_ref().map_or(false, |c| c.contains("Source"))
+        self.media_class.as_ref().is_some_and(|c| c.contains("Source"))
     }
 
     /// Check if this is a Wave:3 node.
@@ -63,10 +63,10 @@ impl NodeInfo {
     }
 }
 
-/// Information about a PipeWire port.
+/// Information about a `PipeWire` port.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PortInfo {
-    /// PipeWire object ID
+    /// `PipeWire` object ID
     pub id: u32,
     /// Port name
     pub name: String,

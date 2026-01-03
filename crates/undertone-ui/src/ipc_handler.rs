@@ -97,6 +97,7 @@ impl IpcHandle {
     }
 
     /// Get the command sender for cloning.
+    #[must_use]
     pub fn command_sender(&self) -> mpsc::Sender<UiCommand> {
         self.command_tx.clone()
     }
@@ -135,12 +136,11 @@ async fn run_ipc_loop(
                 }
 
                 // Request initial state
-                if let Ok(response) = client.request(Method::GetState).await {
-                    if let Ok(value) = response.result {
-                        if let Some(state_data) = parse_state_response(&value) {
-                            let _ = update_tx.send(state_data).await;
-                        }
-                    }
+                if let Ok(response) = client.request(Method::GetState).await
+                    && let Ok(value) = response.result
+                    && let Some(state_data) = parse_state_response(&value)
+                {
+                    let _ = update_tx.send(state_data).await;
                 }
 
                 // Main loop: handle commands and events
@@ -148,11 +148,10 @@ async fn run_ipc_loop(
                     tokio::select! {
                         // Handle commands from UI
                         Some(cmd) = command_rx.recv() => {
-                            if let Some(method) = command_to_method(cmd) {
-                                if let Err(e) = client.request(method).await {
+                            if let Some(method) = command_to_method(cmd)
+                                && let Err(e) = client.request(method).await {
                                     error!(error = %e, "Request failed");
                                 }
-                            }
                         }
 
                         // Handle events from daemon
@@ -164,13 +163,11 @@ async fn run_ipc_loop(
                                 undertone_ipc::events::EventType::AppRemoved
                             ) {
                                 debug!("Refreshing state due to {:?} event", event.event);
-                                if let Ok(response) = client.request(Method::GetState).await {
-                                    if let Ok(value) = response.result {
-                                        if let Some(state_data) = parse_state_response(&value) {
+                                if let Ok(response) = client.request(Method::GetState).await
+                                    && let Ok(value) = response.result
+                                        && let Some(state_data) = parse_state_response(&value) {
                                             let _ = update_tx.send(state_data).await;
                                         }
-                                    }
-                                }
                             } else if let Some(update) = event_to_update(event) {
                                 let _ = update_tx.send(update).await;
                             }
@@ -285,24 +282,28 @@ fn parse_state_response(value: &serde_json::Value) -> Option<IpcUpdate> {
                             .to_string(),
                         stream_volume: ch
                             .get("stream_volume")
-                            .and_then(|v| v.as_f64())
+                            .and_then(serde_json::Value::as_f64)
                             .unwrap_or(1.0) as f32,
                         stream_muted: ch
                             .get("stream_muted")
-                            .and_then(|v| v.as_bool())
+                            .and_then(serde_json::Value::as_bool)
                             .unwrap_or(false),
                         monitor_volume: ch
                             .get("monitor_volume")
-                            .and_then(|v| v.as_f64())
+                            .and_then(serde_json::Value::as_f64)
                             .unwrap_or(1.0) as f32,
                         monitor_muted: ch
                             .get("monitor_muted")
-                            .and_then(|v| v.as_bool())
+                            .and_then(serde_json::Value::as_bool)
                             .unwrap_or(false),
-                        level_left: ch.get("level_left").and_then(|v| v.as_f64()).unwrap_or(0.0)
-                            as f32,
-                        level_right: ch.get("level_right").and_then(|v| v.as_f64()).unwrap_or(0.0)
-                            as f32,
+                        level_left: ch
+                            .get("level_left")
+                            .and_then(serde_json::Value::as_f64)
+                            .unwrap_or(0.0) as f32,
+                        level_right: ch
+                            .get("level_right")
+                            .and_then(serde_json::Value::as_f64)
+                            .unwrap_or(0.0) as f32,
                     })
                 })
                 .collect()
@@ -317,7 +318,8 @@ fn parse_state_response(value: &serde_json::Value) -> Option<IpcUpdate> {
             arr.iter()
                 .filter_map(|app| {
                     Some(AppData {
-                        app_id: app.get("app_id").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
+                        app_id: app.get("app_id").and_then(serde_json::Value::as_u64).unwrap_or(0)
+                            as u32,
                         name: app
                             .get("app_name")
                             .and_then(|v| v.as_str())
@@ -335,7 +337,7 @@ fn parse_state_response(value: &serde_json::Value) -> Option<IpcUpdate> {
                             .to_string(),
                         is_persistent: app
                             .get("is_persistent")
-                            .and_then(|v| v.as_bool())
+                            .and_then(serde_json::Value::as_bool)
                             .unwrap_or(false),
                     })
                 })
@@ -358,14 +360,18 @@ fn parse_state_response(value: &serde_json::Value) -> Option<IpcUpdate> {
             arr.iter()
                 .filter_map(|p| {
                     let name = p.get("name")?.as_str()?.to_string();
-                    let is_default = p.get("is_default").and_then(|v| v.as_bool()).unwrap_or(false);
+                    let is_default =
+                        p.get("is_default").and_then(serde_json::Value::as_bool).unwrap_or(false);
                     Some(ProfileData { name, is_default })
                 })
                 .collect()
         })
         .unwrap_or_else(|| {
             // Fallback if no profiles array
-            vec![ProfileData { name: active_profile.clone(), is_default: active_profile == "Default" }]
+            vec![ProfileData {
+                name: active_profile.clone(),
+                is_default: active_profile == "Default",
+            }]
         });
 
     let device_connected =
@@ -376,17 +382,21 @@ fn parse_state_response(value: &serde_json::Value) -> Option<IpcUpdate> {
 
     // Parse mixer state
     let mixer = value.get("mixer");
-    let stream_master_volume =
-        mixer.and_then(|m| m.get("stream_master_volume")).and_then(|v| v.as_f64()).unwrap_or(1.0)
-            as f32;
-    let stream_master_muted =
-        mixer.and_then(|m| m.get("stream_master_muted")).and_then(|v| v.as_bool()).unwrap_or(false);
-    let monitor_master_volume =
-        mixer.and_then(|m| m.get("monitor_master_volume")).and_then(|v| v.as_f64()).unwrap_or(1.0)
-            as f32;
+    let stream_master_volume = mixer
+        .and_then(|m| m.get("stream_master_volume"))
+        .and_then(serde_json::Value::as_f64)
+        .unwrap_or(1.0) as f32;
+    let stream_master_muted = mixer
+        .and_then(|m| m.get("stream_master_muted"))
+        .and_then(serde_json::Value::as_bool)
+        .unwrap_or(false);
+    let monitor_master_volume = mixer
+        .and_then(|m| m.get("monitor_master_volume"))
+        .and_then(serde_json::Value::as_f64)
+        .unwrap_or(1.0) as f32;
     let monitor_master_muted = mixer
         .and_then(|m| m.get("monitor_master_muted"))
-        .and_then(|v| v.as_bool())
+        .and_then(serde_json::Value::as_bool)
         .unwrap_or(false);
 
     // Parse output devices

@@ -1,4 +1,4 @@
-//! PipeWire graph management.
+//! `PipeWire` graph management.
 
 use parking_lot::RwLock;
 use std::collections::HashMap;
@@ -8,9 +8,9 @@ use tracing::debug;
 use crate::link::LinkInfo;
 use crate::node::{NodeInfo, PortDirection, PortInfo};
 
-/// Manages the PipeWire audio graph.
+/// Manages the `PipeWire` audio graph.
 ///
-/// This is the main interface for interacting with PipeWire. It maintains
+/// This is the main interface for interacting with `PipeWire`. It maintains
 /// a cached view of the current graph state and provides methods for
 /// creating/destroying nodes and links.
 pub struct GraphManager {
@@ -201,10 +201,10 @@ impl GraphManager {
             .find(|n| {
                 // Check if it's an Elgato Wave:3 sink
                 let is_wave3_vendor =
-                    n.properties.get("device.vendor.id").map_or(false, |v| v == "0x0fd9");
+                    n.properties.get("device.vendor.id").is_some_and(|v| v == "0x0fd9");
                 let is_wave3_product =
-                    n.properties.get("device.product.id").map_or(false, |v| v == "0x0070");
-                let is_sink = n.media_class.as_ref().map_or(false, |c| c == "Audio/Sink");
+                    n.properties.get("device.product.id").is_some_and(|v| v == "0x0070");
+                let is_sink = n.media_class.as_ref().is_some_and(|c| c == "Audio/Sink");
                 let is_alsa = n.name.starts_with("alsa_output");
 
                 // Match by vendor/product ID or by name containing Elgato Wave
@@ -233,7 +233,7 @@ impl GraphManager {
             .read()
             .values()
             .find(|n| {
-                let is_source = n.media_class.as_ref().map_or(false, |c| c == "Audio/Source");
+                let is_source = n.media_class.as_ref().is_some_and(|c| c == "Audio/Source");
                 let is_wave3_by_name =
                     (n.name.contains("Elgato") || n.name.contains("Wave")) && is_source;
                 let is_alsa_input = n.name.starts_with("alsa_input");
@@ -256,7 +256,7 @@ impl GraphManager {
             .read()
             .values()
             .filter(|n| {
-                n.media_class.as_ref().map_or(false, |c| c == "Stream/Output/Audio")
+                n.media_class.as_ref().is_some_and(|c| c == "Stream/Output/Audio")
                     && !n.is_undertone_managed
                     && !n.is_wave3()
             })
@@ -274,7 +274,7 @@ impl GraphManager {
             .read()
             .values()
             .filter(|n| {
-                let is_sink = n.media_class.as_ref().map_or(false, |c| c == "Audio/Sink");
+                let is_sink = n.media_class.as_ref().is_some_and(|c| c == "Audio/Sink");
                 // Exclude Undertone's virtual nodes
                 let is_undertone = n.name.starts_with("ut-");
                 // Exclude null sinks used internally
@@ -308,13 +308,13 @@ impl GraphManager {
         expected.iter().all(|name| created.contains_key(*name))
     }
 
-    /// Get all created nodes as a HashMap.
+    /// Get all created nodes as a `HashMap`.
     #[must_use]
     pub fn get_created_nodes(&self) -> std::collections::HashMap<String, u32> {
         self.created_nodes.read().clone()
     }
 
-    /// Get all created links as a HashMap.
+    /// Get all created links as a `HashMap`.
     #[must_use]
     pub fn get_created_links(&self) -> std::collections::HashMap<String, u32> {
         self.created_links.read().clone()

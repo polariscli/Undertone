@@ -1,7 +1,7 @@
-//! Undertone PipeWire - Graph management and node control.
+//! Undertone `PipeWire` - Graph management and node control.
 //!
-//! This crate handles all interactions with PipeWire, including:
-//! - Connecting to the PipeWire daemon
+//! This crate handles all interactions with `PipeWire`, including:
+//! - Connecting to the `PipeWire` daemon
 //! - Creating and managing virtual audio nodes
 //! - Managing links between nodes
 //! - Monitoring the audio graph for changes

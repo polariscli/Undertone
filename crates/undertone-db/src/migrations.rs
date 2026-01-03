@@ -9,10 +9,10 @@ use crate::schema::{DEFAULT_DATA, SCHEMA_V1};
 /// Current schema version.
 const CURRENT_VERSION: i32 = 2;
 
-/// Migration v2: Add mixer_state column to profiles.
-const SCHEMA_V2: &str = r#"
+/// Migration v2: Add `mixer_state` column to profiles.
+const SCHEMA_V2: &str = r"
 ALTER TABLE profiles ADD COLUMN mixer_state TEXT;
-"#;
+";
 
 /// Run all pending migrations.
 pub fn run(conn: &mut Connection) -> DbResult<()> {

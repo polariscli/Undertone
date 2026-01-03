@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use tracing::info;
 
 /// Daemon configuration.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Config {
     /// Daemon settings
     #[serde(default)]
@@ -22,17 +22,6 @@ pub struct Config {
     /// Device settings
     #[serde(default)]
     pub device: DeviceConfig,
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            daemon: DaemonConfig::default(),
-            database: DatabaseConfig::default(),
-            channels: ChannelsConfig::default(),
-            device: DeviceConfig::default(),
-        }
-    }
 }
 
 /// Daemon-specific settings.
@@ -54,16 +43,10 @@ fn default_log_level() -> String {
 }
 
 /// Database settings.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct DatabaseConfig {
     /// Database path (optional, uses default if not set)
     pub path: Option<PathBuf>,
-}
-
-impl Default for DatabaseConfig {
-    fn default() -> Self {
-        Self { path: None }
-    }
 }
 
 /// Channel settings.

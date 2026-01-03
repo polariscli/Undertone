@@ -1,11 +1,11 @@
-//! PipeWire link management.
+//! `PipeWire` link management.
 
 use serde::{Deserialize, Serialize};
 
-/// Information about a PipeWire link.
+/// Information about a `PipeWire` link.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LinkInfo {
-    /// PipeWire object ID
+    /// `PipeWire` object ID
     pub id: u32,
     /// Output (source) node ID
     pub output_node: u32,
@@ -21,7 +21,7 @@ pub struct LinkInfo {
     pub is_undertone_managed: bool,
 }
 
-/// State of a PipeWire link.
+/// State of a `PipeWire` link.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum LinkState {
     /// Link is being set up

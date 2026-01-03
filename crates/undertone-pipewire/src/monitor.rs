@@ -1,7 +1,7 @@
-//! PipeWire graph monitoring.
+//! `PipeWire` graph monitoring.
 //!
-//! This module handles the connection to PipeWire and monitors the audio graph
-//! for changes. It runs in a dedicated thread because PipeWire is not thread-safe.
+//! This module handles the connection to `PipeWire` and monitors the audio graph
+//! for changes. It runs in a dedicated thread because `PipeWire` is not thread-safe.
 
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -23,9 +23,9 @@ use crate::node::{NodeInfo, PortDirection, PortInfo};
 /// Events emitted by the graph monitor.
 #[derive(Debug, Clone)]
 pub enum GraphEvent {
-    /// PipeWire connection established
+    /// `PipeWire` connection established
     Connected,
-    /// PipeWire connection lost
+    /// `PipeWire` connection lost
     Disconnected,
     /// A node was added to the graph
     NodeAdded(NodeInfo),
@@ -49,7 +49,7 @@ pub enum GraphEvent {
     ClientDisappeared { id: u32 },
 }
 
-/// Monitors the PipeWire graph for changes.
+/// Monitors the `PipeWire` graph for changes.
 pub struct GraphMonitor {
     graph: Arc<GraphManager>,
     event_tx: mpsc::Sender<GraphEvent>,
@@ -62,7 +62,7 @@ impl GraphMonitor {
         Self { graph, event_tx }
     }
 
-    /// Start monitoring the PipeWire graph.
+    /// Start monitoring the `PipeWire` graph.
     ///
     /// This function blocks and should be run in a dedicated thread.
     pub fn run(&self) -> PwResult<()> {
@@ -197,10 +197,12 @@ impl GraphMonitor {
                 let node_id =
                     props.and_then(|p| p.get("node.id")).and_then(|s| s.parse().ok()).unwrap_or(0);
 
-                let direction = props
-                    .and_then(|p| p.get("port.direction"))
-                    .map(|d| if d == "in" { PortDirection::Input } else { PortDirection::Output })
-                    .unwrap_or(PortDirection::Output);
+                let direction = props.and_then(|p| p.get("port.direction")).map_or(
+                    PortDirection::Output,
+                    |d| {
+                        if d == "in" { PortDirection::Input } else { PortDirection::Output }
+                    },
+                );
 
                 let channel = props.and_then(|p| p.get("audio.channel")).map(String::from);
 
@@ -268,6 +270,7 @@ impl GraphMonitor {
 }
 
 /// Spawn the graph monitor in a dedicated thread.
+#[must_use]
 pub fn spawn_monitor(graph: Arc<GraphManager>) -> mpsc::Receiver<GraphEvent> {
     let (tx, rx) = mpsc::channel(256);
 

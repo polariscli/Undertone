@@ -11,12 +11,14 @@ use crate::routing::AppRoute;
 /// Current state of the daemon.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum DaemonState {
     /// Initial state, loading configuration
+    #[default]
     Initializing,
     /// Waiting for Wave:3 device to appear
     WaitingForDevice,
-    /// Creating PipeWire nodes
+    /// Creating `PipeWire` nodes
     CreatingNodes,
     /// Normal operation
     Running,
@@ -28,12 +30,6 @@ pub enum DaemonState {
     ShuttingDown,
     /// Fatal error state
     Error(String),
-}
-
-impl Default for DaemonState {
-    fn default() -> Self {
-        Self::Initializing
-    }
 }
 
 /// Events that can trigger state transitions.
@@ -69,11 +65,11 @@ pub enum DaemonEvent {
 /// An available audio output device.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OutputDevice {
-    /// PipeWire node name (used for identification)
+    /// `PipeWire` node name (used for identification)
     pub name: String,
     /// Human-readable description
     pub description: String,
-    /// PipeWire node ID
+    /// `PipeWire` node ID
     pub node_id: u32,
 }
 
@@ -100,9 +96,9 @@ pub struct StateSnapshot {
     pub output_devices: Vec<OutputDevice>,
     /// Current monitor mix output device name
     pub monitor_output: String,
-    /// PipeWire node IDs we've created
+    /// `PipeWire` node IDs we've created
     pub created_nodes: HashMap<String, u32>,
-    /// PipeWire link IDs we've created
+    /// `PipeWire` link IDs we've created
     pub created_links: HashMap<String, u32>,
 }
 

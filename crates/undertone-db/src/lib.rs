@@ -1,4 +1,4 @@
-//! Undertone Database - SQLite persistence layer.
+//! Undertone Database - `SQLite` persistence layer.
 //!
 //! This crate provides persistent storage for channels, routing rules,
 //! profiles, and device settings.

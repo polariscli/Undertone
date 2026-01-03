@@ -62,7 +62,7 @@ pub struct ChannelMuteChangedData {
 /// Audio levels update data.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LevelsData {
-    /// Per-channel levels: (channel_name, left, right)
+    /// Per-channel levels: (`channel_name`, left, right)
     pub channels: Vec<(String, f32, f32)>,
     /// Master output levels
     pub master: (f32, f32),

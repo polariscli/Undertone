@@ -1,7 +1,7 @@
-//! PipeWire runtime that combines monitoring and node creation.
+//! `PipeWire` runtime that combines monitoring and node creation.
 //!
 //! This module provides a unified runtime that handles both graph monitoring
-//! and node creation in a single PipeWire thread.
+//! and node creation in a single `PipeWire` thread.
 
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -32,7 +32,7 @@ use crate::graph::GraphManager;
 use crate::monitor::GraphEvent;
 use crate::node::{NodeInfo, PortDirection, PortInfo, VirtualSinkProps};
 
-/// PipeWire runtime handle for the async world.
+/// `PipeWire` runtime handle for the async world.
 pub struct PipeWireRuntime {
     /// Channel to send factory requests
     factory_tx: pipewire::channel::Sender<FactoryRequest>,
@@ -43,10 +43,10 @@ pub struct PipeWireRuntime {
 }
 
 impl PipeWireRuntime {
-    /// Spawn the PipeWire runtime and return a handle.
+    /// Spawn the `PipeWire` runtime and return a handle.
     ///
     /// # Errors
-    /// Returns an error if the PipeWire runtime thread cannot be spawned.
+    /// Returns an error if the `PipeWire` runtime thread cannot be spawned.
     pub fn spawn(graph: Arc<GraphManager>) -> PwResult<(Self, mpsc::Receiver<GraphEvent>)> {
         let (event_tx, event_rx) = mpsc::channel(256);
         let (factory_tx, factory_internal_rx) = pipewire::channel::channel();
@@ -77,15 +77,15 @@ impl PipeWireRuntime {
     /// it will be reused instead of creating a duplicate.
     pub fn create_sink(&self, props: VirtualSinkProps) -> PwResult<CreatedNode> {
         // Check if a node with this name already exists
-        if let Some(existing) = self.graph.get_node_by_name(&props.name) {
-            if existing.is_undertone_managed {
-                info!(
-                    name = %props.name,
-                    id = existing.id,
-                    "Reusing existing undertone node"
-                );
-                return Ok(CreatedNode { id: existing.id, name: props.name });
-            }
+        if let Some(existing) = self.graph.get_node_by_name(&props.name)
+            && existing.is_undertone_managed
+        {
+            info!(
+                name = %props.name,
+                id = existing.id,
+                "Reusing existing undertone node"
+            );
+            return Ok(CreatedNode { id: existing.id, name: props.name });
         }
 
         self.factory_tx
@@ -153,6 +153,7 @@ impl PipeWireRuntime {
     }
 
     /// Get the graph manager.
+    #[must_use]
     pub fn graph(&self) -> &Arc<GraphManager> {
         &self.graph
     }
@@ -165,9 +166,9 @@ impl PipeWireRuntime {
     ///
     /// # Arguments
     /// * `output_node` - The source node ID
-    /// * `output_port` - The output port name (e.g., "monitor_FL")
+    /// * `output_port` - The output port name (e.g., "`monitor_FL`")
     /// * `input_node` - The destination node ID
-    /// * `input_port` - The input port name (e.g., "input_FL")
+    /// * `input_port` - The input port name (e.g., "`input_FL`")
     pub fn create_link(
         &self,
         output_node: u32,
@@ -198,7 +199,7 @@ impl PipeWireRuntime {
     /// the right channel (FR). This is the common case for stereo audio routing.
     ///
     /// Uses port discovery to find the correct port names, falling back to
-    /// standard PipeWire naming conventions if discovery fails.
+    /// standard `PipeWire` naming conventions if discovery fails.
     pub fn create_stereo_links(&self, output_node: u32, input_node: u32) -> PwResult<(u32, u32)> {
         // Try to discover ports dynamically
         let out_ports = self.graph.get_output_ports(output_node);
@@ -208,32 +209,23 @@ impl PipeWireRuntime {
         let out_fl = out_ports
             .iter()
             .find(|p| p.channel.as_deref() == Some("FL"))
-            .map(|p| p.name.as_str())
-            .unwrap_or("monitor_FL");
+            .map_or("monitor_FL", |p| p.name.as_str());
         let out_fr = out_ports
             .iter()
             .find(|p| p.channel.as_deref() == Some("FR"))
-            .map(|p| p.name.as_str())
-            .unwrap_or("monitor_FR");
+            .map_or("monitor_FR", |p| p.name.as_str());
         let in_fl = in_ports
             .iter()
             .find(|p| p.channel.as_deref() == Some("FL"))
-            .map(|p| p.name.as_str())
-            .unwrap_or("playback_FL");
+            .map_or("playback_FL", |p| p.name.as_str());
         let in_fr = in_ports
             .iter()
             .find(|p| p.channel.as_deref() == Some("FR"))
-            .map(|p| p.name.as_str())
-            .unwrap_or("playback_FR");
+            .map_or("playback_FR", |p| p.name.as_str());
 
         debug!(
             output_node,
-            input_node,
-            out_fl,
-            out_fr,
-            in_fl,
-            in_fr,
-            "Creating stereo links with discovered ports"
+            input_node, out_fl, out_fr, in_fl, in_fr, "Creating stereo links with discovered ports"
         );
 
         let left_id = self.create_link(output_node, out_fl, input_node, in_fl)?;
@@ -257,9 +249,13 @@ impl PipeWireRuntime {
 
     /// Destroy all links between two nodes.
     ///
-    /// This is more reliable than destroy_link because it matches by node IDs
+    /// This is more reliable than `destroy_link` because it matches by node IDs
     /// rather than link proxy IDs (which can differ from registry IDs).
-    pub fn destroy_links_between_nodes(&self, output_node: u32, input_node: u32) -> PwResult<usize> {
+    pub fn destroy_links_between_nodes(
+        &self,
+        output_node: u32,
+        input_node: u32,
+    ) -> PwResult<usize> {
         self.factory_tx
             .send(FactoryRequest::DestroyLinksBetweenNodes { output_node, input_node })
             .map_err(|_| PwError::MainLoopError("Factory channel closed".to_string()))?;
@@ -280,7 +276,7 @@ impl PipeWireRuntime {
     ///
     /// This enables independent volume control for stream and monitor paths per channel.
     ///
-    /// Returns a vector of (link_description, link_id) tuples for tracking.
+    /// Returns a vector of (`link_description`, `link_id`) tuples for tracking.
     pub fn create_channel_to_mix_links_with_filters(&self) -> PwResult<Vec<(String, u32)>> {
         let mut created_links = Vec::new();
 
@@ -415,7 +411,7 @@ impl PipeWireRuntime {
     /// Note: This bypasses volume filter nodes and doesn't support per-channel volume.
     /// Use `create_channel_to_mix_links_with_filters` for volume control support.
     ///
-    /// Returns a vector of (link_description, link_id) tuples for tracking.
+    /// Returns a vector of (`link_description`, `link_id`) tuples for tracking.
     pub fn create_channel_to_mix_links(&self) -> PwResult<Vec<(String, u32)>> {
         let mut created_links = Vec::new();
 
@@ -581,15 +577,15 @@ impl PipeWireRuntime {
         channels: u32,
     ) -> PwResult<CreatedNode> {
         // Check if a node with this name already exists
-        if let Some(existing) = self.graph.get_node_by_name(name) {
-            if existing.is_undertone_managed {
-                info!(
-                    name = %name,
-                    id = existing.id,
-                    "Reusing existing volume filter node"
-                );
-                return Ok(CreatedNode { id: existing.id, name: name.to_string() });
-            }
+        if let Some(existing) = self.graph.get_node_by_name(name)
+            && existing.is_undertone_managed
+        {
+            info!(
+                name = %name,
+                id = existing.id,
+                "Reusing existing volume filter node"
+            );
+            return Ok(CreatedNode { id: existing.id, name: name.to_string() });
         }
 
         self.factory_tx
@@ -614,7 +610,7 @@ impl PipeWireRuntime {
     /// - `ut-ch-{name}-stream-vol` for stream mix volume control
     /// - `ut-ch-{name}-monitor-vol` for monitor mix volume control
     ///
-    /// Returns a vector of (filter_name, node_id) pairs.
+    /// Returns a vector of (`filter_name`, `node_id`) pairs.
     pub fn create_channel_volume_filters(&self, channels: &[&str]) -> PwResult<Vec<(String, u32)>> {
         let mut filters = Vec::new();
 
@@ -654,7 +650,7 @@ impl PipeWireRuntime {
     /// Set volume on a node.
     ///
     /// # Arguments
-    /// * `node_id` - The PipeWire node ID
+    /// * `node_id` - The `PipeWire` node ID
     /// * `volume` - Volume level from 0.0 (silent) to 1.0 (full volume)
     pub fn set_node_volume(&self, node_id: u32, volume: f32) -> PwResult<()> {
         let volume = volume.clamp(0.0, 1.0);
@@ -674,7 +670,7 @@ impl PipeWireRuntime {
     /// Set mute state on a node.
     ///
     /// # Arguments
-    /// * `node_id` - The PipeWire node ID
+    /// * `node_id` - The `PipeWire` node ID
     /// * `muted` - True to mute, false to unmute
     pub fn set_node_mute(&self, node_id: u32, muted: bool) -> PwResult<()> {
         self.factory_tx
@@ -689,7 +685,7 @@ impl PipeWireRuntime {
         }
     }
 
-    /// Request shutdown of the PipeWire thread.
+    /// Request shutdown of the `PipeWire` thread.
     pub fn shutdown(&self) {
         let _ = self.factory_tx.send(FactoryRequest::Shutdown);
     }
@@ -700,7 +696,7 @@ impl PipeWireRuntime {
     /// and creates new links to the target channel sink.
     ///
     /// # Arguments
-    /// * `app_node_id` - The PipeWire node ID of the audio app
+    /// * `app_node_id` - The `PipeWire` node ID of the audio app
     /// * `channel_name` - The Undertone channel name (e.g., "music", "voice")
     ///
     /// # Returns
@@ -806,7 +802,7 @@ fn capitalize(s: &str) -> String {
     }
 }
 
-/// Run the PipeWire thread - this combines monitoring and node creation.
+/// Run the `PipeWire` thread - this combines monitoring and node creation.
 fn run_pipewire_thread(
     graph: Arc<GraphManager>,
     event_tx: mpsc::Sender<GraphEvent>,
@@ -949,7 +945,7 @@ fn run_pipewire_thread(
                 debug!(id, "Node destroyed");
                 let _ = factory_tx.send(FactoryResponse::NodeDestroyed { id });
             } else {
-                let _ = factory_tx.send(FactoryResponse::Error(format!("Node {} not found", id)));
+                let _ = factory_tx.send(FactoryResponse::Error(format!("Node {id} not found")));
             }
         }
         FactoryRequest::DestroyLink(id) => {
@@ -1092,7 +1088,7 @@ fn set_node_volume(
     let proxies = proxies.borrow();
     let node = proxies
         .get(&node_id)
-        .ok_or_else(|| PwError::NodeNotFound(format!("Node {} not found in proxies", node_id)))?;
+        .ok_or_else(|| PwError::NodeNotFound(format!("Node {node_id} not found in proxies")))?;
 
     debug!(node_id, volume, "Setting node volume via monitorVolumes");
 
@@ -1103,10 +1099,7 @@ fn set_node_volume(
     let props_object = Value::Object(Object {
         type_: SpaTypes::ObjectParamProps.as_raw(),
         id: ParamType::Props.as_raw(),
-        properties: vec![Property::new(
-            spa_props::SPA_PROP_MONITOR_VOLUMES,
-            monitor_volumes,
-        )],
+        properties: vec![Property::new(spa_props::SPA_PROP_MONITOR_VOLUMES, monitor_volumes)],
     });
 
     // Serialize the object to a Pod
@@ -1141,7 +1134,7 @@ fn set_node_mute(
     let proxies = proxies.borrow();
     let node = proxies
         .get(&node_id)
-        .ok_or_else(|| PwError::NodeNotFound(format!("Node {} not found in proxies", node_id)))?;
+        .ok_or_else(|| PwError::NodeNotFound(format!("Node {node_id} not found in proxies")))?;
 
     debug!(node_id, muted, "Setting node monitorMute");
 
@@ -1273,10 +1266,10 @@ fn handle_global(
             let node_id =
                 props.and_then(|p| p.get("node.id")).and_then(|s| s.parse().ok()).unwrap_or(0);
 
-            let direction = props
-                .and_then(|p| p.get("port.direction"))
-                .map(|d| if d == "in" { PortDirection::Input } else { PortDirection::Output })
-                .unwrap_or(PortDirection::Output);
+            let direction =
+                props.and_then(|p| p.get("port.direction")).map_or(PortDirection::Output, |d| {
+                    if d == "in" { PortDirection::Input } else { PortDirection::Output }
+                });
 
             let channel = props.and_then(|p| p.get("audio.channel")).map(String::from);
 

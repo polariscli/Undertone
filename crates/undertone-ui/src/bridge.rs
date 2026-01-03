@@ -44,10 +44,10 @@ fn get_ui_data() -> &'static Mutex<UiDataCache> {
 
 /// Send a command to the daemon via the global IPC handle.
 fn send_command(cmd: UiCommand) {
-    if let Some(handle) = IPC_HANDLE.get() {
-        if let Ok(guard) = handle.lock() {
-            let _ = guard.command_sender().try_send(cmd);
-        }
+    if let Some(handle) = IPC_HANDLE.get()
+        && let Ok(guard) = handle.lock()
+    {
+        let _ = guard.command_sender().try_send(cmd);
     }
 }
 
@@ -253,7 +253,7 @@ mod ffi {
     }
 }
 
-/// Rust backing struct for UndertoneController QObject.
+/// Rust backing struct for `UndertoneController` `QObject`.
 pub struct UndertoneControllerRust {
     connected: bool,
     device_connected: bool,
@@ -334,16 +334,14 @@ impl ffi::UndertoneController {
         let mix = if self.mix_mode == 0 { MixType::Stream } else { MixType::Monitor };
 
         // Get current muted state to toggle
-        let current_muted = if let Ok(cache) = get_ui_data().lock() {
-            cache
-                .channels
-                .iter()
-                .find(|c| c.name == channel_name)
-                .map(|c| if self.mix_mode == 0 { c.stream_muted } else { c.monitor_muted })
-                .unwrap_or(false)
-        } else {
-            false
-        };
+        let current_muted =
+            if let Ok(cache) = get_ui_data().lock() {
+                cache.channels.iter().find(|c| c.name == channel_name).is_some_and(|c| {
+                    if self.mix_mode == 0 { c.stream_muted } else { c.monitor_muted }
+                })
+            } else {
+                false
+            };
 
         let new_muted = !current_muted;
         debug!(channel = %channel_name, ?mix, muted = new_muted, "Setting channel mute");
@@ -376,11 +374,9 @@ impl ffi::UndertoneController {
     /// Get channel volume by index.
     fn channel_volume(&self, index: i32) -> f32 {
         if let Ok(cache) = get_ui_data().lock() {
-            cache
-                .channels
-                .get(index as usize)
-                .map(|c| if self.mix_mode == 0 { c.stream_volume } else { c.monitor_volume })
-                .unwrap_or(1.0)
+            cache.channels.get(index as usize).map_or(1.0, |c| {
+                if self.mix_mode == 0 { c.stream_volume } else { c.monitor_volume }
+            })
         } else {
             1.0
         }
@@ -392,8 +388,7 @@ impl ffi::UndertoneController {
             cache
                 .channels
                 .get(index as usize)
-                .map(|c| if self.mix_mode == 0 { c.stream_muted } else { c.monitor_muted })
-                .unwrap_or(false)
+                .is_some_and(|c| if self.mix_mode == 0 { c.stream_muted } else { c.monitor_muted })
         } else {
             false
         }
@@ -573,11 +568,11 @@ impl ffi::UndertoneController {
     /// Poll for updates from the IPC handler.
     fn poll_updates(mut self: Pin<&mut Self>) {
         // Try to get updates from the IPC handler
-        if let Some(handle) = IPC_HANDLE.get() {
-            if let Ok(mut guard) = handle.lock() {
-                while let Some(update) = guard.try_recv_update() {
-                    self.as_mut().apply_update(update);
-                }
+        if let Some(handle) = IPC_HANDLE.get()
+            && let Ok(mut guard) = handle.lock()
+        {
+            while let Some(update) = guard.try_recv_update() {
+                self.as_mut().apply_update(update);
             }
         }
     }

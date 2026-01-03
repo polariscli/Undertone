@@ -1,7 +1,7 @@
-//! Undertone Daemon - PipeWire audio control service.
+//! Undertone Daemon - `PipeWire` audio control service.
 //!
 //! This is the main entry point for the Undertone daemon, which manages
-//! PipeWire audio routing, persistence, and Wave:3 hardware integration.
+//! `PipeWire` audio routing, persistence, and Wave:3 hardware integration.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -43,7 +43,7 @@ async fn main() -> Result<()> {
     info!(version = env!("CARGO_PKG_VERSION"), "Starting Undertone daemon");
 
     // Load configuration
-    let config = config::load_config()?;
+    let _config = config::load_config()?;
     info!("Configuration loaded");
 
     // Open database
@@ -89,8 +89,8 @@ async fn main() -> Result<()> {
 
     // Spawn PipeWire runtime
     info!("Starting PipeWire runtime...");
-    let (pw_runtime, mut graph_event_rx) = PipeWireRuntime::spawn(Arc::clone(&graph))
-        .context("Failed to spawn PipeWire runtime")?;
+    let (pw_runtime, mut graph_event_rx) =
+        PipeWireRuntime::spawn(Arc::clone(&graph)).context("Failed to spawn PipeWire runtime")?;
 
     // Wait for PipeWire connection
     info!("Waiting for PipeWire connection...");
@@ -216,39 +216,39 @@ async fn main() -> Result<()> {
     let mut monitor_output = String::from("wave3-sink");
 
     // Load default profile on startup (apply channel states to PipeWire)
-    if let Ok(Some(default_profile_name)) = db.get_default_profile() {
-        if let Ok(Some(profile)) = db.load_profile(&default_profile_name) {
-            info!(name = %default_profile_name, "Loading default profile");
-            active_profile = default_profile_name.clone();
-            for profile_ch in &profile.channels {
-                if let Some(ch) = channels.iter_mut().find(|c| c.config.name == profile_ch.name) {
-                    ch.stream_volume = profile_ch.stream_volume;
-                    ch.stream_muted = profile_ch.stream_muted;
-                    ch.monitor_volume = profile_ch.monitor_volume;
-                    ch.monitor_muted = profile_ch.monitor_muted;
+    if let Ok(Some(default_profile_name)) = db.get_default_profile()
+        && let Ok(Some(profile)) = db.load_profile(&default_profile_name)
+    {
+        info!(name = %default_profile_name, "Loading default profile");
+        active_profile = default_profile_name.clone();
+        for profile_ch in &profile.channels {
+            if let Some(ch) = channels.iter_mut().find(|c| c.config.name == profile_ch.name) {
+                ch.stream_volume = profile_ch.stream_volume;
+                ch.stream_muted = profile_ch.stream_muted;
+                ch.monitor_volume = profile_ch.monitor_volume;
+                ch.monitor_muted = profile_ch.monitor_muted;
 
-                    // Apply to PipeWire filter nodes
-                    use undertone_core::mixer::MixType;
-                    for (mix, volume, muted) in [
-                        (MixType::Stream, ch.stream_volume, ch.stream_muted),
-                        (MixType::Monitor, ch.monitor_volume, ch.monitor_muted),
-                    ] {
-                        let filter_name = match mix {
-                            MixType::Stream => format!("ut-ch-{}-stream-vol", ch.config.name),
-                            MixType::Monitor => format!("ut-ch-{}-monitor-vol", ch.config.name),
-                        };
-                        if let Some(node_id) = graph.get_created_node_id(&filter_name) {
-                            let _ = pw_runtime.set_node_volume(node_id, volume);
-                            let _ = pw_runtime.set_node_mute(node_id, muted);
-                        }
+                // Apply to PipeWire filter nodes
+                use undertone_core::mixer::MixType;
+                for (mix, volume, muted) in [
+                    (MixType::Stream, ch.stream_volume, ch.stream_muted),
+                    (MixType::Monitor, ch.monitor_volume, ch.monitor_muted),
+                ] {
+                    let filter_name = match mix {
+                        MixType::Stream => format!("ut-ch-{}-stream-vol", ch.config.name),
+                        MixType::Monitor => format!("ut-ch-{}-monitor-vol", ch.config.name),
+                    };
+                    if let Some(node_id) = graph.get_created_node_id(&filter_name) {
+                        let _ = pw_runtime.set_node_volume(node_id, volume);
+                        let _ = pw_runtime.set_node_mute(node_id, muted);
                     }
                 }
             }
-            // Only replace routes if the profile has custom routes defined
-            // Otherwise, keep the global routes from app_routes table
-            if !profile.routes.is_empty() {
-                routes = profile.routes;
-            }
+        }
+        // Only replace routes if the profile has custom routes defined
+        // Otherwise, keep the global routes from app_routes table
+        if !profile.routes.is_empty() {
+            routes = profile.routes;
         }
     }
 
@@ -616,9 +616,9 @@ async fn main() -> Result<()> {
                             let audio_clients = pw_runtime.get_audio_clients();
                             for client in audio_clients {
                                 // Check if this client matches the pattern
-                                let matches = client.application_name.as_ref().map_or(false, |name| {
+                                let matches = client.application_name.as_ref().is_some_and(|name| {
                                     rule.matches(name)
-                                }) || client.binary_name.as_ref().map_or(false, |name| {
+                                }) || client.binary_name.as_ref().is_some_and(|name| {
                                     rule.matches(name)
                                 }) || rule.matches(&client.name);
 
