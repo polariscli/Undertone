@@ -41,7 +41,7 @@ fi
 # Paths
 UDEV_RULES="/etc/udev/rules.d/99-elgato-wave3.rules"
 WP_CONF_DIR="$HOME/.config/wireplumber/wireplumber.conf.d"
-WP_SCRIPT_DIR="$HOME/.config/wireplumber/scripts"
+WP_SCRIPT_DIR="$HOME/.local/share/wireplumber/scripts"
 SYSTEMD_DIR="$HOME/.config/systemd/user"
 DATA_DIR="$HOME/.local/share/undertone"
 
