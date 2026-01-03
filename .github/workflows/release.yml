@@ -10,62 +10,61 @@ env:
 
 jobs:
   build:
-    name: Build ${{ matrix.target }}
-    runs-on: ubuntu-24.04
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - target: x86_64-unknown-linux-gnu
-            artifact: undertone-linux-x86_64
+    name: Build Linux x86_64
+    runs-on: ubuntu-latest
+    container:
+      image: fedora:41
 
     steps:
+      - name: Install dependencies
+        run: |
+          dnf install -y \
+            git \
+            gcc \
+            g++ \
+            pipewire-devel \
+            qt6-qtbase-devel \
+            qt6-qtdeclarative-devel \
+            kf6-kirigami-devel \
+            kf6-qqc2-desktop-style \
+            clang \
+            pkg-config \
+            curl
+
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libpipewire-0.3-dev \
-            qt6-base-dev \
-            qt6-declarative-dev \
-            libkf6kirigami-dev \
-            kf6-qqc2-desktop-style \
-            clang \
-            pkg-config
-
       - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
       - name: Build
         run: |
-          cargo build --release --target ${{ matrix.target }} \
-            -p undertone-daemon -p undertone-ui
+          source "$HOME/.cargo/env"
+          cargo build --release -p undertone-daemon -p undertone-ui
 
       - name: Package
         run: |
           mkdir -p dist
-          cp target/${{ matrix.target }}/release/undertone-daemon dist/
-          cp target/${{ matrix.target }}/release/undertone dist/
+          cp target/release/undertone-daemon dist/
+          cp target/release/undertone dist/
           cp scripts/undertone-daemon.service dist/
           cp scripts/99-elgato-wave3.rules dist/
           cp -r scripts/wireplumber dist/
           cp README.md LICENSE dist/
-          cd dist && tar -czvf ../${{ matrix.artifact }}.tar.gz *
+          cd dist && tar -czvf ../undertone-linux-x86_64.tar.gz *
 
       - name: Generate checksum
-        run: sha256sum ${{ matrix.artifact }}.tar.gz > ${{ matrix.artifact }}.tar.gz.sha256
+        run: sha256sum undertone-linux-x86_64.tar.gz > undertone-linux-x86_64.tar.gz.sha256
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact }}
+          name: undertone-linux-x86_64
           path: |
-            ${{ matrix.artifact }}.tar.gz
-            ${{ matrix.artifact }}.tar.gz.sha256
+            undertone-linux-x86_64.tar.gz
+            undertone-linux-x86_64.tar.gz.sha256
 
   release:
     name: Create Release
@@ -106,9 +105,9 @@ jobs:
             curl -sSL https://raw.githubusercontent.com/polariscli/Undertone/main/scripts/install.sh | bash
             ```
 
-            ### Pre-built Binary
+            ### Pre-built Binary (faster)
             ```bash
-            curl -sSL https://raw.githubusercontent.com/polariscli/Undertone/main/scripts/install.sh | bash -s -- install --binary
+            curl -sSL https://raw.githubusercontent.com/polariscli/Undertone/main/scripts/install.sh | bash -s -- --binary
             ```
 
             ### Manual Installation
@@ -119,9 +118,9 @@ jobs:
             5. Install udev rules: `sudo cp 99-elgato-wave3.rules /etc/udev/rules.d/`
             6. Install WirePlumber config to `~/.config/wireplumber/`
 
-            ## Requirements
+            ## Runtime Requirements
             - Linux with PipeWire
             - Qt6 runtime libraries
-            - KDE Kirigami runtime
+            - KDE Kirigami 6 runtime
 
             See [README](https://github.com/polariscli/Undertone#readme) for details.

@@ -216,7 +216,7 @@ check_runtime_deps() {
     fi
 
     # Check for Kirigami runtime
-    if ! ldconfig -p 2>/dev/null | grep -q libKF6Kirigami; then
+    if ! ldconfig -p 2>/dev/null | grep -qE 'libKF6Kirigami|libKirigami'; then
         case "$OS_ID" in
             fedora|rhel|centos) missing+=("kf6-kirigami" "kf6-qqc2-desktop-style") ;;
             arch|manjaro|endeavouros) missing+=("kirigami") ;;
@@ -428,8 +428,15 @@ check_dependencies() {
         print_success "Qt6 development files found"
     fi
 
-    # Check for Kirigami
-    if ! pkg-config --exists KF6Kirigami 2>/dev/null; then
+    # Check for Kirigami (uses CMake, not pkg-config)
+    local kirigami_found=false
+    if [[ -d "/usr/lib64/cmake/KF6Kirigami" ]] || \
+       [[ -d "/usr/lib/cmake/KF6Kirigami" ]] || \
+       [[ -d "/usr/lib/x86_64-linux-gnu/cmake/KF6Kirigami" ]]; then
+        kirigami_found=true
+    fi
+
+    if [[ "$kirigami_found" != "true" ]]; then
         case "$OS_ID" in
             fedora|rhel|centos)
                 missing+=("kf6-kirigami-devel" "kf6-qqc2-desktop-style")
